@@ -12,7 +12,11 @@ import ApplicationServices
 final class TextInserter {
 
     func insert(text: String) {
-        if tryAccessibilityInsert(text: text) { return }
+        if tryAccessibilityInsert(text: text) {
+            print("[FieldWhisperer] ✅ Text inserted via Accessibility API")
+            return
+        }
+        print("[FieldWhisperer] AX insert failed or not trusted — using pasteboard fallback (Cmd+V)")
         pasteboardInsert(text: text)
     }
 

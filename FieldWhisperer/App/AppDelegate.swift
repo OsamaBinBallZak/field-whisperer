@@ -86,20 +86,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         soundwavePanel.showTranscribing()
         menuBarController.setRecordingIndicator(active: false)
 
+        var textToInsert: String? = nil
         do {
             let text = try await transcriptionEngine.transcribe(audioSamples: samples)
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty {
-                print("[FieldWhisperer] Inserting text: \"\(trimmed.prefix(80))\"")
-                textInserter.insert(text: trimmed)
-            } else {
+            if trimmed.isEmpty {
                 print("[FieldWhisperer] Transcription returned empty text — nothing to insert.")
+            } else {
+                textToInsert = trimmed
             }
         } catch {
             print("[FieldWhisperer] ❌ Transcription error: \(error.localizedDescription)")
         }
 
+        // Hide panel FIRST so the target app regains keyboard focus before we paste
         soundwavePanel.hide()
+
+        if let text = textToInsert {
+            // Brief pause: let the hide animation finish and let the target app
+            // become the key application before we inject the Cmd+V keystroke
+            try? await Task.sleep(for: .milliseconds(300))
+            print("[FieldWhisperer] Inserting text: \"\(text.prefix(80))\"")
+            textInserter.insert(text: text)
+        }
+
         state = .idle
     }
 
