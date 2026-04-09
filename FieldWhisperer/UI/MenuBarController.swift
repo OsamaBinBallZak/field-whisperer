@@ -9,6 +9,7 @@ protocol MenuBarControllerDelegate: AnyObject {
 
 /// Owns the NSStatusItem (menu bar icon) and rebuilds the menu whenever
 /// the TranscriptionEngine's loading state changes.
+@MainActor
 final class MenuBarController: NSObject {
 
     private var statusItem: NSStatusItem!
