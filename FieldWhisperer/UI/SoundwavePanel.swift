@@ -47,6 +47,21 @@ final class SoundwavePanel: NSPanel {
         viewModel.state = .transcribing
     }
 
+    /// Show "Copied! ⌘V to paste" then auto-hide after a brief delay.
+    func showCopied() {
+        viewModel.state = .copied
+        positionAtTopCenter()
+        if !isVisible { orderFront(nil) }
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.2
+            self.animator().alphaValue = 1.0
+        }
+        // Auto-hide after 2 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+            self?.hide()
+        }
+    }
+
     func updateLevel(_ level: Float) {
         viewModel.audioLevel = Double(level)
     }

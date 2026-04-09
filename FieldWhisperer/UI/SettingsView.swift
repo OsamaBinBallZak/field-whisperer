@@ -55,17 +55,26 @@ struct SettingsView: View {
             // MARK: Permissions
             Section {
                 // Accessibility
-                permissionRow(
-                    icon: "hand.raised.fill",
-                    title: "Accessibility",
-                    subtitle: axGranted
-                        ? "Required to insert text into focused fields"
-                        : "Required to insert text into focused fields. " +
-                          "After enabling in System Settings, toggle the switch OFF then ON again.",
-                    granted: axGranted,
-                    buttonLabel: "Open Settings",
-                    action: { openSystemPrivacy("Privacy_Accessibility") }
-                )
+                VStack(alignment: .leading, spacing: 6) {
+                    permissionRow(
+                        icon: "hand.raised.fill",
+                        title: "Accessibility (optional)",
+                        subtitle: axGranted
+                            ? "Text will be inserted directly into focused fields"
+                            : "Without this, text is copied to clipboard instead (⌘V to paste)",
+                        granted: axGranted,
+                        buttonLabel: "Open Settings",
+                        action: { openSystemPrivacy("Privacy_Accessibility") }
+                    )
+                    if !axGranted {
+                        Text("Tip: If already enabled but not detected, remove FieldWhisperer " +
+                             "from the Accessibility list (click −) and re-add it (click +). " +
+                             "This is needed after each Xcode rebuild.")
+                            .font(.caption2)
+                            .foregroundColor(.orange)
+                            .padding(.leading, 32)
+                    }
+                }
 
                 // Microphone — distinguish "never asked" from "denied"
                 microphoneRow

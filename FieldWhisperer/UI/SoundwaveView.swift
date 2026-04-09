@@ -6,6 +6,7 @@ enum RecordingUIState {
     case hidden
     case recording
     case transcribing
+    case copied        // brief "Copied! ⌘V to paste" feedback
 }
 
 @MainActor
@@ -28,9 +29,9 @@ struct SoundwaveView: View {
 
             HStack(spacing: 10) {
                 // Microphone icon – red while recording
-                Image(systemName: "mic.fill")
+                Image(systemName: iconName)
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(viewModel.state == .recording ? .red : .secondary)
+                    .foregroundColor(iconColor)
                     .padding(.leading, 14)
 
                 if viewModel.state == .transcribing {
@@ -43,6 +44,12 @@ struct SoundwaveView: View {
                             .font(.system(size: 13, weight: .medium))
                             .foregroundColor(.secondary)
                     }
+                    Spacer()
+                } else if viewModel.state == .copied {
+                    // Copied-to-clipboard feedback
+                    Text("Copied! ⌘V to paste")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.primary)
                     Spacer()
                 } else {
                     // Animated soundwave bars
@@ -61,10 +68,26 @@ struct SoundwaveView: View {
         .frame(width: 280, height: 64)
     }
 
+    private var iconName: String {
+        switch viewModel.state {
+        case .copied: return "doc.on.clipboard"
+        default:      return "mic.fill"
+        }
+    }
+
+    private var iconColor: Color {
+        switch viewModel.state {
+        case .recording: return .red
+        case .copied:    return .green
+        default:         return .secondary
+        }
+    }
+
     private var dotColor: Color {
         switch viewModel.state {
         case .recording:    return .red
         case .transcribing: return .orange
+        case .copied:       return .green
         case .hidden:       return .clear
         }
     }

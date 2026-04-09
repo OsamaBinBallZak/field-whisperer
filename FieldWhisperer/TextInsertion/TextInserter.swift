@@ -1,26 +1,37 @@
 import AppKit
 import ApplicationServices
 
+/// Result of a text insertion attempt.
+enum InsertionResult {
+    case accessibilityInserted   // AX API worked — text also on clipboard as bonus
+    case copiedToClipboard       // AX failed — text on clipboard, user must ⌘V
+}
+
 /// Inserts text into the currently focused UI element.
 ///
-/// Strategy (in order):
-/// 1. Accessibility API – sets the selected-text attribute of the focused AX element.
-///    Works with most native macOS apps (TextEdit, Notes, Xcode, Terminal, etc.).
-/// 2. Pasteboard + simulated Cmd-V – universal fallback that works in every app,
-///    including Electron-based apps and web browsers.
-///    The original clipboard content is restored after a short delay.
+/// Strategy:
+/// 1. Always copy text to the clipboard (failsafe — user can always ⌘V).
+/// 2. Try Accessibility API to insert directly into the focused field.
+/// 3. If AX fails, the text is already on the clipboard — caller shows "Copied!" feedback.
 final class TextInserter {
 
-    func insert(text: String) {
+    func insert(text: String) -> InsertionResult {
+        // Always put text on clipboard as a failsafe
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+
+        // Try the Accessibility path for direct insertion
         if tryAccessibilityInsert(text: text) {
-            print("[FieldWhisperer] ✅ Text inserted via Accessibility API")
-            return
+            print("[FieldWhisperer] ✅ Text inserted via Accessibility API (also on clipboard)")
+            return .accessibilityInserted
         }
-        print("[FieldWhisperer] AX insert failed or not trusted — using pasteboard fallback (Cmd+V)")
-        pasteboardInsert(text: text)
+
+        print("[FieldWhisperer] AX insert not available — text copied to clipboard (⌘V to paste)")
+        return .copiedToClipboard
     }
 
-    // MARK: - Primary: Accessibility API
+    // MARK: - Accessibility API
 
     private func tryAccessibilityInsert(text: String) -> Bool {
         guard AXIsProcessTrusted() else { return false }
@@ -50,40 +61,5 @@ final class TextInserter {
         )
 
         return setResult == .success
-    }
-
-    // MARK: - Fallback: Pasteboard + Cmd-V
-
-    private func pasteboardInsert(text: String) {
-        let pasteboard = NSPasteboard.general
-        let previousContent = pasteboard.string(forType: .string)
-
-        // Place transcribed text on the clipboard
-        pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
-
-        // Synthesize Cmd-V keyDown / keyUp
-        let source = CGEventSource(stateID: .combinedSessionState)
-        let vKey: CGKeyCode = 9      // physical V key
-
-        if let down = CGEvent(keyboardEventSource: source, virtualKey: vKey, keyDown: true),
-           let up   = CGEvent(keyboardEventSource: source, virtualKey: vKey, keyDown: false) {
-            down.flags = .maskCommand
-            up.flags   = .maskCommand
-            down.post(tap: .cgAnnotatedSessionEventTap)
-            up.post(tap:   .cgAnnotatedSessionEventTap)
-        }
-
-        // Restore the clipboard after 600 ms (after the paste completes)
-        let changeCountAfterWrite = pasteboard.changeCount
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            // Only restore if the clipboard hasn't been changed by the user since
-            if pasteboard.changeCount == changeCountAfterWrite {
-                pasteboard.clearContents()
-                if let prev = previousContent {
-                    pasteboard.setString(prev, forType: .string)
-                }
-            }
-        }
     }
 }
