@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 
+@MainActor
 protocol MenuBarControllerDelegate: AnyObject {
     func menuBarControllerDidRequestSettings(_ controller: MenuBarController)
     func menuBarControllerDidRequestQuit(_ controller: MenuBarController)
