@@ -67,16 +67,6 @@ struct SettingsView: View {
                     action: { openSystemPrivacy("Privacy_Accessibility") }
                 )
 
-                // Input Monitoring — cannot be queried programmatically
-                permissionRow(
-                    icon: "keyboard.fill",
-                    title: "Input Monitoring",
-                    subtitle: "Required to detect the FN key globally",
-                    granted: true,
-                    buttonLabel: "Open Settings",
-                    action: { openSystemPrivacy("Privacy_ListenEvent") }
-                )
-
                 // Microphone — distinguish "never asked" from "denied"
                 microphoneRow
             } header: {
@@ -90,7 +80,7 @@ struct SettingsView: View {
                     Spacer()
                     Text("v1.0").foregroundColor(.secondary)
                 }
-                Text("Hold the FN key to start recording, release to transcribe and paste into any text field.")
+                Text("Hold ⌥Space (Option+Space) to record, release to transcribe and paste into any text field.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }

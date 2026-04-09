@@ -57,11 +57,11 @@ final class MenuBarController: NSObject {
 
         // Usage hint
         if transcriptionEngine.isReady {
-            let hint = NSMenuItem(title: "Hold FN → speak → release to paste",
+            let hint = NSMenuItem(title: "Hold ⌥Space → speak → release to paste",
                                   action: nil, keyEquivalent: "")
             hint.isEnabled = false
             hint.attributedTitle = NSAttributedString(
-                string: "Hold FN → speak → release to paste",
+                string: "Hold ⌥Space → speak → release to paste",
                 attributes: [.font: NSFont.systemFont(ofSize: 11),
                              .foregroundColor: NSColor.secondaryLabelColor])
             menu.addItem(hint)

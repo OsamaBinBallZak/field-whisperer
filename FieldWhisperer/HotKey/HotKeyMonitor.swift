@@ -1,19 +1,23 @@
+import Carbon.HIToolbox
 import AppKit
-import CoreGraphics
 
-/// Monitors the global FN key using a CGEventTap.
-/// Requires the user to grant Input Monitoring permission in
-/// System Settings → Privacy & Security → Input Monitoring.
+/// Monitors a global push-to-talk hotkey using Carbon's RegisterEventHotKey.
+///
+/// Default hotkey: Option+Space (⌥Space)
+/// - No Input Monitoring permission required
+/// - Never auto-disabled by macOS
+/// - keyDown fires onKeyDown; keyUp fires onKeyUp (push-to-talk style)
 final class HotKeyMonitor {
 
     private let onFNDown: () async -> Void
     private let onFNUp:   () async -> Void
 
-    // fileprivate so the C callback can re-enable a disabled tap
-    fileprivate var eventTap: CFMachPort?
-    private var runLoopSource: CFRunLoopSource?
-    private var selfRetain: Unmanaged<HotKeyMonitor>?
-    private var fnIsDown = false
+    private var hotKeyRef:    EventHotKeyRef?
+    private var eventHandler: EventHandlerRef?
+
+    // ⌥Space: change keyCode/modifiers here to use a different combo
+    private let keyCode:   UInt32 = UInt32(kVK_Space)
+    private let modifiers: UInt32 = UInt32(optionKey)
 
     init(onFNDown: @escaping () async -> Void,
          onFNUp:   @escaping () async -> Void) {
@@ -21,103 +25,94 @@ final class HotKeyMonitor {
         self.onFNUp   = onFNUp
     }
 
-    deinit {
-        stop()
-    }
+    deinit { stop() }
 
     // MARK: - Public API
 
     func start() {
-        guard eventTap == nil else { return }
+        var hotKeyID = EventHotKeyID()
+        hotKeyID.signature = fourCharCode("FWpt")   // FieldWhisperer push-to-talk
+        hotKeyID.id        = 1
 
-        // Retain self so the C callback can hold a raw pointer to us.
-        selfRetain = Unmanaged.passRetained(self)
-        let userInfo = selfRetain!.toOpaque()
+        var eventTypes = [
+            EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
+                          eventKind:  UInt32(kEventHotKeyPressed)),
+            EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
+                          eventKind:  UInt32(kEventHotKeyReleased))
+        ]
 
-        let mask = CGEventMask(1 << CGEventType.flagsChanged.rawValue)
+        // Retain self for the C callback
+        let selfPtr = Unmanaged.passRetained(self).toOpaque()
 
-        eventTap = CGEvent.tapCreate(
-            tap: .cgSessionEventTap,
-            place: .headInsertEventTap,
-            options: .listenOnly,           // passive – don't swallow events
-            eventsOfInterest: mask,
-            callback: eventTapCallback,
-            userInfo: userInfo
+        let status = InstallEventHandler(
+            GetApplicationEventTarget(),
+            hotKeyEventCallback,
+            eventTypes.count,
+            &eventTypes,
+            selfPtr,
+            &eventHandler
         )
 
-        guard let tap = eventTap else {
-            // Tap creation failed – Input Monitoring not granted.
-            selfRetain?.release()
-            selfRetain = nil
-            print("[FieldWhisperer] ❌ CGEvent tap could not be created. " +
-                  "Grant Input Monitoring permission and relaunch.")
+        guard status == noErr else {
+            print("[FieldWhisperer] ❌ InstallEventHandler failed: \(status)")
+            Unmanaged<HotKeyMonitor>.fromOpaque(selfPtr).release()
             return
         }
 
-        runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
-        CGEvent.tapEnable(tap: tap, enable: true)
-        print("[FieldWhisperer] ✅ CGEvent tap created and enabled. FN key monitoring active.")
+        let regStatus = RegisterEventHotKey(
+            keyCode, modifiers, hotKeyID,
+            GetApplicationEventTarget(), 0,
+            &hotKeyRef
+        )
+
+        if regStatus == noErr {
+            print("[FieldWhisperer] ✅ Hotkey registered: ⌥Space (Option+Space). " +
+                  "Hold to record, release to transcribe.")
+        } else {
+            print("[FieldWhisperer] ❌ RegisterEventHotKey failed: \(regStatus). " +
+                  "Another app may already have ⌥Space. Try quitting Spotlight/Alfred/Raycast.")
+        }
     }
 
     func stop() {
-        if let tap = eventTap {
-            CGEvent.tapEnable(tap: tap, enable: false)
-        }
-        if let src = runLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), src, .commonModes)
-        }
-        eventTap = nil
-        runLoopSource = nil
-        selfRetain?.release()
-        selfRetain = nil
+        if let ref = hotKeyRef     { UnregisterEventHotKey(ref); hotKeyRef = nil }
+        if let h   = eventHandler  { RemoveEventHandler(h);      eventHandler = nil }
     }
 
     // MARK: - Internal (called from C callback)
 
-    /// Re-enable the tap after macOS auto-disables it (tapDisabledByTimeout).
-    fileprivate func reEnableTap() {
-        guard let tap = eventTap else { return }
-        CGEvent.tapEnable(tap: tap, enable: true)
-        print("[FieldWhisperer] ⚠️ CGEvent tap was auto-disabled by macOS — re-enabled.")
+    fileprivate func handleKeyDown() {
+        print("[FieldWhisperer] ⌥Space DOWN — starting recording")
+        Task { @MainActor in await onFNDown() }
     }
 
-    fileprivate func handleFlagsChanged(flags: CGEventFlags) {
-        // Log ALL flag-changed events so we can see raw values from every modifier key.
-        // This lets us confirm events are arriving AND see what FN actually sends.
-        print("[FieldWhisperer] flagsChanged: rawValue=0x\(String(flags.rawValue, radix: 16))" +
-              " fn=\(flags.contains(.maskSecondaryFn))" +
-              " shift=\(flags.contains(.maskShift))" +
-              " cmd=\(flags.contains(.maskCommand))")
-
-        // CGEventFlags.maskSecondaryFn (0x800000) is set while FN is held.
-        let isFNDown = flags.contains(.maskSecondaryFn)
-
-        if isFNDown && !fnIsDown {
-            fnIsDown = true
-            print("[FieldWhisperer] FN key DOWN detected")
-            Task { @MainActor in await onFNDown() }
-        } else if !isFNDown && fnIsDown {
-            fnIsDown = false
-            print("[FieldWhisperer] FN key UP detected")
-            Task { @MainActor in await onFNUp() }
-        }
+    fileprivate func handleKeyUp() {
+        print("[FieldWhisperer] ⌥Space UP — stopping recording")
+        Task { @MainActor in await onFNUp() }
     }
 }
 
-// MARK: - C callback (must be a free function or @convention(c))
+// MARK: - Carbon event callback
 
-private let eventTapCallback: CGEventTapCallBack = { _, type, event, userInfo in
-    guard let userInfo = userInfo else { return nil }
-    let monitor = Unmanaged<HotKeyMonitor>.fromOpaque(userInfo).takeUnretainedValue()
+private let hotKeyEventCallback: EventHandlerUPP = { _, event, userData in
+    guard let event, let userData else { return OSStatus(eventNotHandledErr) }
 
-    // macOS auto-disables taps that are slow to respond. Re-enable immediately.
-    if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-        monitor.reEnableTap()
-        return nil
+    let monitor = Unmanaged<HotKeyMonitor>.fromOpaque(userData).takeUnretainedValue()
+
+    switch Int(GetEventKind(event)) {
+    case kEventHotKeyPressed:  monitor.handleKeyDown()
+    case kEventHotKeyReleased: monitor.handleKeyUp()
+    default: break
     }
+    return noErr
+}
 
-    guard type == .flagsChanged else { return nil }
-    monitor.handleFlagsChanged(flags: event.flags)
-    return Unmanaged.passUnretained(event)
+// MARK: - Helpers
+
+private func fourCharCode(_ s: StaticString) -> FourCharCode {
+    let bytes = s.utf8Start
+    return FourCharCode(bytes[0]) << 24
+         | FourCharCode(bytes[1]) << 16
+         | FourCharCode(bytes[2]) << 8
+         | FourCharCode(bytes[3])
 }
