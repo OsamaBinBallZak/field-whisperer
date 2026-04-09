@@ -83,6 +83,13 @@ final class HotKeyMonitor {
     }
 
     fileprivate func handleFlagsChanged(flags: CGEventFlags) {
+        // Log ALL flag-changed events so we can see raw values from every modifier key.
+        // This lets us confirm events are arriving AND see what FN actually sends.
+        print("[FieldWhisperer] flagsChanged: rawValue=0x\(String(flags.rawValue, radix: 16))" +
+              " fn=\(flags.contains(.maskSecondaryFn))" +
+              " shift=\(flags.contains(.maskShift))" +
+              " cmd=\(flags.contains(.maskCommand))")
+
         // CGEventFlags.maskSecondaryFn (0x800000) is set while FN is held.
         let isFNDown = flags.contains(.maskSecondaryFn)
 
