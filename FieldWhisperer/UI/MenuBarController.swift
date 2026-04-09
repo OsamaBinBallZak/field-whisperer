@@ -90,6 +90,16 @@ final class MenuBarController: NSObject {
 
     // MARK: - Recording indicator
 
+    /// Briefly tints the menu bar icon orange to signal "not ready yet"
+    func flashNotReady() {
+        guard let button = statusItem.button else { return }
+        button.contentTintColor = .systemOrange
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+            guard let self, !self.isRecording else { return }
+            button.contentTintColor = nil
+        }
+    }
+
     func setRecordingIndicator(active: Bool) {
         isRecording = active
         updateButtonImage(recording: active)

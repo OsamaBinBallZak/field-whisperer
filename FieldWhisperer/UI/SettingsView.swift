@@ -1,11 +1,16 @@
 import SwiftUI
 import ApplicationServices
+import AVFoundation
 
 struct SettingsView: View {
     @ObservedObject var transcriptionEngine: TranscriptionEngine
     @State private var selectedModel: String = ModelManager.selectedModel
-    @State private var axGranted  = false
-    @State private var micGranted = false
+    @State private var axGranted        = false
+    @State private var micGranted       = false
+    @State private var micNotDetermined = false
+
+    // Auto-refresh permission status while the panel is open
+    private let permissionTimer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
 
     var body: some View {
         Form {
@@ -48,28 +53,34 @@ struct SettingsView: View {
             }
 
             // MARK: Permissions
-            Section("Permissions") {
+            Section {
+                // Accessibility
                 permissionRow(
                     icon: "hand.raised.fill",
                     title: "Accessibility",
-                    subtitle: "Required to insert text into focused fields",
+                    subtitle: axGranted
+                        ? "Required to insert text into focused fields"
+                        : "Required to insert text into focused fields. " +
+                          "After enabling in System Settings, toggle the switch OFF then ON again.",
                     granted: axGranted,
+                    buttonLabel: "Open Settings",
                     action: { openSystemPrivacy("Privacy_Accessibility") }
                 )
+
+                // Input Monitoring — cannot be queried programmatically
                 permissionRow(
                     icon: "keyboard.fill",
                     title: "Input Monitoring",
                     subtitle: "Required to detect the FN key globally",
-                    granted: true,   // Cannot read this programmatically; user must verify
+                    granted: true,
+                    buttonLabel: "Open Settings",
                     action: { openSystemPrivacy("Privacy_ListenEvent") }
                 )
-                permissionRow(
-                    icon: "mic.fill",
-                    title: "Microphone",
-                    subtitle: "Required to record your voice",
-                    granted: micGranted,
-                    action: { openSystemPrivacy("Privacy_Microphone") }
-                )
+
+                // Microphone — distinguish "never asked" from "denied"
+                microphoneRow
+            } header: {
+                Text("Permissions")
             }
 
             // MARK: About
@@ -87,14 +98,50 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .frame(width: 440)
         .onAppear { checkPermissions() }
+        .onReceive(permissionTimer) { _ in checkPermissions() }
     }
 
-    // MARK: - Helpers
+    // MARK: - Microphone row (inline to call requestAccess directly)
+
+    @ViewBuilder
+    private var microphoneRow: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: "mic.fill")
+                .foregroundColor(.secondary)
+                .frame(width: 20)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Microphone").fontWeight(.medium)
+                Text("Required to record your voice")
+                    .font(.caption).foregroundColor(.secondary)
+            }
+            Spacer()
+            if micGranted {
+                Label("Granted", systemImage: "checkmark.circle.fill")
+                    .foregroundColor(.green).font(.callout)
+            } else if micNotDetermined {
+                // First-time: trigger the system prompt directly
+                Button("Grant Access") {
+                    AVCaptureDevice.requestAccess(for: .audio) { _ in
+                        DispatchQueue.main.async { checkPermissions() }
+                    }
+                }
+                .controlSize(.small)
+            } else {
+                // Already denied — must go to System Settings
+                Button("Open Settings") { openSystemPrivacy("Privacy_Microphone") }
+                    .controlSize(.small)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    // MARK: - Generic permission row
 
     private func permissionRow(icon: String,
                                title: String,
                                subtitle: String,
                                granted: Bool,
+                               buttonLabel: String,
                                action: @escaping () -> Void) -> some View {
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: icon)
@@ -109,19 +156,22 @@ struct SettingsView: View {
                 Label("Granted", systemImage: "checkmark.circle.fill")
                     .foregroundColor(.green).font(.callout)
             } else {
-                Button("Open Settings", action: action)
+                Button(buttonLabel, action: action)
                     .controlSize(.small)
             }
         }
         .padding(.vertical, 2)
     }
 
+    // MARK: - Helpers
+
     private func checkPermissions() {
         axGranted = AXIsProcessTrusted()
 
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
-        case .authorized: micGranted = true
-        default:          micGranted = false
+        case .authorized:    micGranted = true;  micNotDetermined = false
+        case .notDetermined: micGranted = false; micNotDetermined = true
+        default:             micGranted = false; micNotDetermined = false
         }
     }
 
@@ -131,6 +181,3 @@ struct SettingsView: View {
         }
     }
 }
-
-// Needed for mic permission check
-import AVFoundation

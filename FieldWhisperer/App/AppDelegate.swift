@@ -49,7 +49,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Recording state machine
 
     private func beginRecording() async {
-        guard state == .idle, transcriptionEngine.isReady else { return }
+        guard state == .idle else { return }
+        guard transcriptionEngine.isReady else {
+            print("[FieldWhisperer] FN pressed but model not ready: \(transcriptionEngine.statusText)")
+            menuBarController.flashNotReady()
+            return
+        }
         state = .recording
         soundwavePanel.show()
         menuBarController.setRecordingIndicator(active: true)
