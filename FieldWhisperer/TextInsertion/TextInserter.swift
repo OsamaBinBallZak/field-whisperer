@@ -53,7 +53,6 @@ final class TextInserter {
     private func pasteboardInsert(text: String) {
         let pasteboard = NSPasteboard.general
         let previousContent = pasteboard.string(forType: .string)
-        let changeCountBefore = pasteboard.changeCount
 
         // Place transcribed text on the clipboard
         pasteboard.clearContents()

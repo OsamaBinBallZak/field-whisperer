@@ -17,7 +17,7 @@ struct SettingsView: View {
                     }
                 }
                 .pickerStyle(.radioGroup)
-                .onChange(of: selectedModel) { newValue in
+                .onChange(of: selectedModel) { _, newValue in
                     guard newValue != ModelManager.selectedModel else { return }
                     ModelManager.selectedModel = newValue
                     Task { await transcriptionEngine.reloadModel(variant: newValue) }

@@ -57,8 +57,11 @@ final class SoundwavePanel: NSPanel {
             self.animator().alphaValue = 0
         }, completionHandler: {
             self.orderOut(nil)
-            self.viewModel.state = .hidden
-            self.viewModel.audioLevel = 0
+            // NSAnimationContext completion handlers always fire on the main thread.
+            MainActor.assumeIsolated {
+                self.viewModel.state = .hidden
+                self.viewModel.audioLevel = 0
+            }
         })
     }
 
