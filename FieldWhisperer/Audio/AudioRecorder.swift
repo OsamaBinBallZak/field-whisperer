@@ -3,11 +3,17 @@ import AVFoundation
 /// Captures microphone input and converts it to 16 kHz mono Float32 samples
 /// required by WhisperKit. A level callback is fired on the main thread with
 /// a normalized amplitude (0–1) for the soundwave UI.
+///
+/// Thread-safety note: All public methods must be called on the main thread.
+/// The AVCaptureDevice.requestAccess callback is async; `levelCallback` being
+/// non-nil is used as a cancellation signal — if stop() clears it before the
+/// callback fires, startEngine() is never called, preventing double-tap crashes.
 final class AudioRecorder {
 
     private let engine = AVAudioEngine()
     private var samples: [Float] = []
     private var levelCallback: ((Float) -> Void)?
+    private var tapInstalled = false
 
     // WhisperKit requires 16 kHz mono Float32
     private let targetSampleRate: Double = 16_000
@@ -27,6 +33,11 @@ final class AudioRecorder {
     /// Start recording. `levelCallback` is called on the main thread with
     /// a 0–1 amplitude suitable for driving the soundwave animation.
     func start(levelCallback: @escaping (Float) -> Void) {
+        // Clean up any previous session that didn't shut down fully
+        // (guards against the race condition where the permission callback
+        // fired after a previous stop(), leaving the engine running)
+        tearDown()
+
         self.levelCallback = levelCallback
         samples.removeAll(keepingCapacity: true)
 
@@ -35,21 +46,42 @@ final class AudioRecorder {
                 print("[FieldWhisperer] Microphone permission denied.")
                 return
             }
-            DispatchQueue.main.async { self?.startEngine() }
+            DispatchQueue.main.async {
+                // If stop() was called while we awaited permission, levelCallback
+                // will be nil — abort silently instead of starting a phantom session.
+                guard let self, self.levelCallback != nil else { return }
+                self.startEngine()
+            }
         }
     }
 
     /// Stop recording and return the captured samples.
     func stop() -> [Float] {
-        engine.inputNode.removeTap(onBus: 0)
-        engine.stop()
-        levelCallback = nil
-        return samples
+        let captured = samples
+        tearDown()
+        return captured
     }
 
     // MARK: - Private
 
+    private func tearDown() {
+        // Setting levelCallback = nil before removeTap / stop acts as a
+        // cancellation flag for any in-flight permission callbacks.
+        levelCallback = nil
+        if tapInstalled {
+            engine.inputNode.removeTap(onBus: 0)
+            tapInstalled = false
+        }
+        if engine.isRunning {
+            engine.stop()
+        }
+        samples.removeAll(keepingCapacity: true)
+    }
+
     private func startEngine() {
+        // Guard against double-tap (should not happen, but be defensive)
+        guard !tapInstalled else { return }
+
         let inputNode   = engine.inputNode
         let inputFormat = inputNode.outputFormat(forBus: 0)
 
@@ -58,6 +90,7 @@ final class AudioRecorder {
             return
         }
 
+        tapInstalled = true
         inputNode.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { [weak self] buffer, _ in
             guard let self else { return }
 
@@ -82,7 +115,6 @@ final class AudioRecorder {
             let frameCount = Int(output.frameLength)
             let chunk = Array(UnsafeBufferPointer(start: channelData, count: frameCount))
 
-            // Root-mean-square → normalized amplitude for soundwave UI
             let rms = sqrt(chunk.map { $0 * $0 }.reduce(0, +) / Float(max(frameCount, 1)))
             let level = min(rms * 20.0, 1.0)
 
@@ -95,6 +127,7 @@ final class AudioRecorder {
         do {
             try engine.start()
         } catch {
+            tapInstalled = false
             print("[FieldWhisperer] AVAudioEngine start failed: \(error.localizedDescription)")
         }
     }
