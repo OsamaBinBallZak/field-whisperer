@@ -9,7 +9,8 @@ final class HotKeyMonitor {
     private let onFNDown: () async -> Void
     private let onFNUp:   () async -> Void
 
-    private var eventTap: CFMachPort?
+    // fileprivate so the C callback can re-enable a disabled tap
+    fileprivate var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var selfRetain: Unmanaged<HotKeyMonitor>?
     private var fnIsDown = false
@@ -46,10 +47,9 @@ final class HotKeyMonitor {
 
         guard let tap = eventTap else {
             // Tap creation failed – Input Monitoring not granted.
-            // The OS automatically prompts the user on the first failure.
             selfRetain?.release()
             selfRetain = nil
-            print("[FieldWhisperer] CGEvent tap could not be created. " +
+            print("[FieldWhisperer] ❌ CGEvent tap could not be created. " +
                   "Grant Input Monitoring permission and relaunch.")
             return
         }
@@ -57,6 +57,7 @@ final class HotKeyMonitor {
         runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
+        print("[FieldWhisperer] ✅ CGEvent tap created and enabled. FN key monitoring active.")
     }
 
     func stop() {
@@ -74,15 +75,24 @@ final class HotKeyMonitor {
 
     // MARK: - Internal (called from C callback)
 
+    /// Re-enable the tap after macOS auto-disables it (tapDisabledByTimeout).
+    fileprivate func reEnableTap() {
+        guard let tap = eventTap else { return }
+        CGEvent.tapEnable(tap: tap, enable: true)
+        print("[FieldWhisperer] ⚠️ CGEvent tap was auto-disabled by macOS — re-enabled.")
+    }
+
     fileprivate func handleFlagsChanged(flags: CGEventFlags) {
         // CGEventFlags.maskSecondaryFn (0x800000) is set while FN is held.
         let isFNDown = flags.contains(.maskSecondaryFn)
 
         if isFNDown && !fnIsDown {
             fnIsDown = true
+            print("[FieldWhisperer] FN key DOWN detected")
             Task { @MainActor in await onFNDown() }
         } else if !isFNDown && fnIsDown {
             fnIsDown = false
+            print("[FieldWhisperer] FN key UP detected")
             Task { @MainActor in await onFNUp() }
         }
     }
@@ -91,13 +101,16 @@ final class HotKeyMonitor {
 // MARK: - C callback (must be a free function or @convention(c))
 
 private let eventTapCallback: CGEventTapCallBack = { _, type, event, userInfo in
-    // For a listenOnly tap the return value is ignored; nil is safe.
-    // event is non-optional in this SDK — no guard let needed.
-    guard type == .flagsChanged,
-          let userInfo = userInfo else {
+    guard let userInfo = userInfo else { return nil }
+    let monitor = Unmanaged<HotKeyMonitor>.fromOpaque(userInfo).takeUnretainedValue()
+
+    // macOS auto-disables taps that are slow to respond. Re-enable immediately.
+    if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+        monitor.reEnableTap()
         return nil
     }
-    let monitor = Unmanaged<HotKeyMonitor>.fromOpaque(userInfo).takeUnretainedValue()
+
+    guard type == .flagsChanged else { return nil }
     monitor.handleFlagsChanged(flags: event.flags)
     return Unmanaged.passUnretained(event)
 }

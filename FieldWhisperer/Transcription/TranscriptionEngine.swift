@@ -48,22 +48,26 @@ final class TranscriptionEngine: ObservableObject {
     func loadModel(variant: String) async {
         currentModelName = variant
         loadingState = .loading
+        print("[FieldWhisperer] Loading model: \(modelDisplayName(variant)) (\(variant))…")
 
         do {
             // WhisperKit automatically downloads the model if not cached
             // and loads the CoreML optimized variant for the current device.
             let config = WhisperKitConfig(
                 model: variant,
-                verbose: false,
-                logLevel: .none,
+                verbose: true,
+                logLevel: .debug,
                 prewarm: false,
                 load: true,
                 download: true
             )
             whisperKit = try await WhisperKit(config)
             loadingState = .ready
+            print("[FieldWhisperer] ✅ Model loaded successfully: \(variant)")
         } catch {
-            loadingState = .failed(error.localizedDescription)
+            let msg = error.localizedDescription
+            loadingState = .failed(msg)
+            print("[FieldWhisperer] ❌ Model loading failed: \(msg)")
         }
     }
 
@@ -80,7 +84,14 @@ final class TranscriptionEngine: ObservableObject {
             throw TranscriptionError.notLoaded
         }
         // Minimum ~0.5 s of audio to avoid spurious transcriptions
-        guard audioSamples.count > Int(targetSampleRate * 0.5) else { return "" }
+        let minSamples = Int(targetSampleRate * 0.5)
+        guard audioSamples.count > minSamples else {
+            print("[FieldWhisperer] Audio too short (\(audioSamples.count) samples, need >\(minSamples)). Skipping.")
+            return ""
+        }
+
+        print("[FieldWhisperer] Transcribing \(audioSamples.count) samples " +
+              "(~\(String(format: "%.1f", Double(audioSamples.count) / targetSampleRate))s of audio)…")
 
         let options = DecodingOptions(
             verbose: false,
@@ -95,7 +106,9 @@ final class TranscriptionEngine: ObservableObject {
         )
 
         let results = try await wk.transcribe(audioArray: audioSamples, decodeOptions: options)
-        return results.compactMap { $0.text }.joined(separator: " ")
+        let text = results.compactMap { $0.text }.joined(separator: " ")
+        print("[FieldWhisperer] Transcription result: \"\(text)\"")
+        return text
     }
 
     // MARK: - Helpers

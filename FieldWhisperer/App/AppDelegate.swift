@@ -16,8 +16,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var state: AppState = .idle
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        print("[FieldWhisperer] App launched.")
+
         // Prompt for Accessibility permission immediately on first launch
-        requestAccessibilityPermission()
+        let axTrusted = requestAccessibilityPermission()
+        print("[FieldWhisperer] AXIsProcessTrusted = \(axTrusted)")
+        if !axTrusted {
+            print("[FieldWhisperer] ⚠️ Accessibility not trusted. " +
+                  "Text insertion will use pasteboard fallback (Cmd+V). " +
+                  "Grant in System Settings → Accessibility, then toggle OFF/ON and restart.")
+        }
 
         // Initialize subsystems
         transcriptionEngine = TranscriptionEngine()
@@ -49,12 +57,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Recording state machine
 
     private func beginRecording() async {
-        guard state == .idle else { return }
+        guard state == .idle else {
+            print("[FieldWhisperer] beginRecording: ignored — state is \(state), not idle")
+            return
+        }
         guard transcriptionEngine.isReady else {
-            print("[FieldWhisperer] FN pressed but model not ready: \(transcriptionEngine.statusText)")
+            print("[FieldWhisperer] beginRecording: model not ready — \(transcriptionEngine.statusText)")
             menuBarController.flashNotReady()
             return
         }
+        print("[FieldWhisperer] beginRecording: starting…")
         state = .recording
         soundwavePanel.show()
         menuBarController.setRecordingIndicator(active: true)
@@ -64,9 +76,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func endRecording() async {
-        guard state == .recording else { return }
+        guard state == .recording else {
+            print("[FieldWhisperer] endRecording: ignored — state is \(state), not recording")
+            return
+        }
         state = .transcribing
         let samples = audioRecorder.stop()
+        print("[FieldWhisperer] endRecording: captured \(samples.count) samples")
         soundwavePanel.showTranscribing()
         menuBarController.setRecordingIndicator(active: false)
 
@@ -74,10 +90,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let text = try await transcriptionEngine.transcribe(audioSamples: samples)
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty {
+                print("[FieldWhisperer] Inserting text: \"\(trimmed.prefix(80))\"")
                 textInserter.insert(text: trimmed)
+            } else {
+                print("[FieldWhisperer] Transcription returned empty text — nothing to insert.")
             }
         } catch {
-            print("[FieldWhisperer] Transcription error: \(error.localizedDescription)")
+            print("[FieldWhisperer] ❌ Transcription error: \(error.localizedDescription)")
         }
 
         soundwavePanel.hide()
@@ -86,9 +105,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Permissions
 
-    private func requestAccessibilityPermission() {
+    @discardableResult
+    private func requestAccessibilityPermission() -> Bool {
         let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
-        AXIsProcessTrustedWithOptions([key: true] as CFDictionary)
+        return AXIsProcessTrustedWithOptions([key: true] as CFDictionary)
     }
 }
 
