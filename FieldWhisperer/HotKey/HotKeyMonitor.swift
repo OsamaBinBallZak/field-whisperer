@@ -92,9 +92,9 @@ final class HotKeyMonitor {
 
 private let eventTapCallback: CGEventTapCallBack = { _, type, event, userInfo in
     // For a listenOnly tap the return value is ignored; nil is safe.
+    // event is non-optional in this SDK — no guard let needed.
     guard type == .flagsChanged,
-          let userInfo = userInfo,
-          let event = event else {
+          let userInfo = userInfo else {
         return nil
     }
     let monitor = Unmanaged<HotKeyMonitor>.fromOpaque(userInfo).takeUnretainedValue()
