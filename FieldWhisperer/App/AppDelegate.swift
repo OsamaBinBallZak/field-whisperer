@@ -61,7 +61,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         print("[FieldWhisperer] Recording started")
         state = .recording
-        if ModelManager.soundFeedbackEnabled { NSSound(named: "Tink")?.play() }
         soundwavePanel.show()
         menuBarController.setRecordingIndicator(active: true)
         audioRecorder.start { [weak self] level in

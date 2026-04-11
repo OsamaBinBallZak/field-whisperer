@@ -83,14 +83,14 @@ struct SettingsView: View {
                     .onChange(of: fillerFilterEnabled) { _, newValue in
                         ModelManager.fillerFilterEnabled = newValue
                     }
-                Toggle("Sound feedback", isOn: $soundFeedbackEnabled)
+                Toggle("Completion sound", isOn: $soundFeedbackEnabled)
                     .onChange(of: soundFeedbackEnabled) { _, newValue in
                         ModelManager.soundFeedbackEnabled = newValue
                     }
             } header: {
                 Text("Options")
             } footer: {
-                Text("Filler words: removes \"um\", \"uh\", \"hmm\" and similar from transcriptions.\nSound feedback: plays a soft chime when recording starts and stops.")
+                Text("Filler words: removes \"um\", \"uh\", \"hmm\" and similar from transcriptions.\nCompletion sound: plays a soft chime when transcription finishes.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
