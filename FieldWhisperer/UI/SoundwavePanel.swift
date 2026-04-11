@@ -19,8 +19,21 @@ final class SoundwavePanel: NSPanel {
     /// Cancellable auto-hide work item (used by showCopied).
     private var pendingHide: DispatchWorkItem?
 
-    /// Retained so the player isn't deallocated before playback finishes.
-    private var completionPlayer: AVAudioPlayer?
+    /// Pre-loaded at init so play() fires with zero initialization latency.
+    private let completionPlayer: AVAudioPlayer? = {
+        guard let url = Bundle.main.url(forResource: "field-whisperer-scribble-sound",
+                                        withExtension: "mp3"),
+              let player = try? AVAudioPlayer(contentsOf: url)
+        else {
+            print("[FieldWhisperer] ⚠️ completion sound not found in bundle — expected: field-whisperer-scribble-sound.mp3")
+            return nil
+        }
+        player.enableRate = true
+        player.rate       = 1.4
+        player.volume     = 1.0
+        player.prepareToPlay()   // pre-buffers audio so play() is instant
+        return player
+    }()
 
     init(viewModel: SoundwaveViewModel) {
         self.viewModel = viewModel
@@ -76,24 +89,15 @@ final class SoundwavePanel: NSPanel {
     func showCopied() {
         pendingHide?.cancel()
 
+        // Play first — player is pre-buffered so this fires with no latency
+        completionPlayer?.currentTime = 0
+        completionPlayer?.play()
+
         withAnimation(.easeInOut(duration: 0.35)) {
             viewModel.state    = .copied
             viewModel.liveText = ""
         }
-        if let url = Bundle.main.url(forResource: "field-whisperer-scribble-sound", withExtension: "mp3") {
-            if let player = try? AVAudioPlayer(contentsOf: url) {
-                player.enableRate = true
-                player.rate   = 1.4
-                player.volume = 1.0
-                player.play()
-                completionPlayer = player   // retain until playback finishes
-            } else {
-                print("[FieldWhisperer] ⚠️ AVAudioPlayer init failed for completion sound")
-            }
-        } else {
-            print("[FieldWhisperer] ⚠️ completion sound not found in bundle — expected: field-whisperer-scribble-sound.mp3")
-        }
-        // Panel is already visible — just update state then auto-hide after a beat
+
         let item = DispatchWorkItem { [weak self] in self?.hide() }
         pendingHide = item
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.6, execute: item)

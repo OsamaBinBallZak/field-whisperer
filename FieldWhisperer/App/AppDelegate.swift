@@ -113,11 +113,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Small delay lets any focus changes settle before the insert.
         try? await Task.sleep(for: .milliseconds(150))
 
+        // Fire sound and paste simultaneously — player is pre-buffered so
+        // showCopied() plays instantly, and postToPid is near-instantaneous.
+        soundwavePanel.showCopied()
         let _ = textInserter.insert(text: text, targetPid: insertionTargetPid)
         insertionTargetPid = nil
-
-        // Always show completion feedback then auto-hide with exit animation
-        soundwavePanel.showCopied()
 
         state = .idle
     }
