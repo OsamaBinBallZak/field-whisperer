@@ -159,10 +159,19 @@ final class MenuBarController: NSObject {
 
     private func updateButtonImage(recording: Bool) {
         guard let button = statusItem.button else { return }
-        let symbolName = "mic.fill"
-        let image = NSImage(systemSymbolName: symbolName,
+
+        // Use custom asset if provided, otherwise fall back to the system mic symbol.
+        // The asset must be a black-on-transparent PNG/PDF named "MenuBarIcon" in
+        // Assets.xcassets — macOS tints template images automatically for light/dark bars.
+        let image: NSImage?
+        if let custom = NSImage(named: "MenuBarIcon") {
+            custom.size = NSSize(width: 18, height: 18)
+            image = custom
+        } else {
+            image = NSImage(systemSymbolName: "mic.fill",
                             accessibilityDescription: "FieldWhisperer")
-        image?.isTemplate = !recording
+        }
+        image?.isTemplate = !recording   // template = macOS handles dark/light tinting
         button.image = image
         button.contentTintColor = recording ? .systemRed : nil
     }
