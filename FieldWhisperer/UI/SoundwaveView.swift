@@ -84,20 +84,12 @@ struct SoundwaveView: View {
                     .shadow(color: .black.opacity(0.5), radius: 18, y: 7)
 
                 HStack(spacing: 0) {
-                    // Mic / checkmark icon — faint blue bloom behind it during recording
-                    ZStack {
-                        if viewModel.state == .recording {
-                            Circle()
-                                .fill(Color(red: 0.25, green: 0.55, blue: 1.0).opacity(0.18))
-                                .frame(width: 28, height: 28)
-                                .blur(radius: 5)
-                        }
-                        Image(systemName: iconName)
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(iconColor)
-                    }
-                    .padding(.leading, 16)
-                    .padding(.trailing, 10)
+                    // Mic / checkmark icon — white, no glow
+                    Image(systemName: iconName)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(iconColor)
+                        .padding(.leading, 16)
+                        .padding(.trailing, 10)
 
                     switch viewModel.state {
                     case .recording:

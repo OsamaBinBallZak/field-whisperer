@@ -82,6 +82,8 @@ final class SoundwavePanel: NSPanel {
         }
         if let url = Bundle.main.url(forResource: "field-whisperer-scribble-sound", withExtension: "mp3") {
             if let player = try? AVAudioPlayer(contentsOf: url) {
+                player.enableRate = true
+                player.rate   = 1.4
                 player.volume = 1.0
                 player.play()
                 completionPlayer = player   // retain until playback finishes

@@ -29,8 +29,9 @@ final class TextInserter {
             return .accessibilityInserted
         }
 
-        // Step 3: simulate Cmd+V for apps that don't expose AX (Slack, browsers, Electron)
-        if simulateCmdV() {
+        // Step 3: simulate Cmd+V — but only when there's a focused text element.
+        // Without this guard, Cmd+V lands in Finder/desktop and macOS plays a pop sound.
+        if hasFocusedTextElement(), simulateCmdV() {
             print("[FieldWhisperer] ✅ Pasted via Cmd+V simulation")
             return .pastedViaKeyboard
         }
@@ -64,6 +65,21 @@ final class TextInserter {
             kAXSelectedTextAttribute as CFString,
             text as CFTypeRef
         ) == .success
+    }
+
+    // MARK: - Focus check
+
+    /// Returns true if the system-wide focused element appears to be a text input
+    /// (has a kAXValue attribute). Prevents Cmd+V from firing into Finder/desktop.
+    private func hasFocusedTextElement() -> Bool {
+        let sys = AXUIElementCreateSystemWide()
+        var raw: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+            sys, kAXFocusedUIElementAttribute as CFString, &raw
+        ) == .success, let raw else { return false }
+        let elem = raw as! AXUIElement
+        var value: CFTypeRef?
+        return AXUIElementCopyAttributeValue(elem, kAXValueAttribute as CFString, &value) == .success
     }
 
     // MARK: - Cmd+V simulation
