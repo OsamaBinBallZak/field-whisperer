@@ -14,6 +14,7 @@ final class SoundwaveViewModel: ObservableObject {
     @Published var state: RecordingUIState = .hidden
     @Published var audioLevel: Double = 0
     @Published var liveText: String = ""   // interim transcription shown while recording
+    @Published var isVisible: Bool = false  // drives entry/exit animation
 }
 
 // MARK: - Root view
@@ -23,17 +24,17 @@ struct SoundwaveView: View {
 
     var body: some View {
         ZStack {
-            // Dark high-contrast pill
-            RoundedRectangle(cornerRadius: 20)
+            // Full-lozenge (capsule) dark background
+            Capsule()
                 .fill(Color(red: 0.1, green: 0.1, blue: 0.12).opacity(0.94))
-                .shadow(color: .black.opacity(0.45), radius: 16, y: 6)
+                .shadow(color: .black.opacity(0.5), radius: 18, y: 7)
 
             HStack(spacing: 0) {
                 // Mic / clipboard icon
                 Image(systemName: iconName)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(iconColor)
-                    .padding(.leading, 14)
+                    .padding(.leading, 16)
                     .padding(.trailing, 10)
 
                 switch viewModel.state {
@@ -41,7 +42,7 @@ struct SoundwaveView: View {
                     // Bars always visible at fixed width
                     SoundwaveBars(audioLevel: viewModel.audioLevel)
                         .frame(width: 36)
-                    // Scrolling live text fills the remaining space
+                    // Single-line text scrolls slowly left→right as words arrive
                     ScrollingLiveText(text: viewModel.liveText)
                         .padding(.horizontal, 8)
 
@@ -72,17 +73,22 @@ struct SoundwaveView: View {
                 Circle()
                     .fill(dotColor)
                     .frame(width: 8, height: 8)
-                    .padding(.trailing, 14)
                     .padding(.leading, 6)
+                    .padding(.trailing, 16)
                     .opacity(viewModel.state == .hidden ? 0 : 1)
             }
         }
         .frame(width: 320, height: 56)
+        .clipShape(Capsule())  // clips content to the lozenge boundary
+        // Entry / exit animation driven by isVisible
+        .scaleEffect(viewModel.isVisible ? 1.0 : 0.78)
+        .offset(y: viewModel.isVisible ? 0 : -18)
+        .opacity(viewModel.isVisible ? 1.0 : 0.0)
     }
 
     private var iconName: String {
         switch viewModel.state {
-        case .copied: return "doc.on.clipboard"
+        case .copied: return "checkmark.circle.fill"
         default:      return "mic.fill"
         }
     }
@@ -107,8 +113,7 @@ struct SoundwaveView: View {
 
 // MARK: - Scrolling live text
 
-/// Single-line text that auto-scrolls right as new words arrive,
-/// so the latest transcription is always visible.
+/// Single-line text that slowly auto-scrolls to reveal the latest words.
 struct ScrollingLiveText: View {
     let text: String
 
@@ -117,15 +122,16 @@ struct ScrollingLiveText: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 Text(text.isEmpty ? " " : text)
                     .font(.system(size: 12, weight: .regular))
-                    .foregroundColor(.white.opacity(text.isEmpty ? 0 : 0.9))
+                    .foregroundColor(.white.opacity(text.isEmpty ? 0 : 0.88))
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
                     .id("end")
             }
-            .disabled(true)   // prevent manual scrolling
+            .disabled(true)   // no manual scrolling
             .clipped()
             .onChange(of: text) { _, _ in
-                withAnimation(.easeOut(duration: 0.3)) {
+                // Slow, deliberate scroll so new words drift into view
+                withAnimation(.spring(response: 1.6, dampingFraction: 0.92)) {
                     proxy.scrollTo("end", anchor: .trailing)
                 }
             }

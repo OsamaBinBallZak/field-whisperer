@@ -105,17 +105,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         print("[FieldWhisperer] Inserting: \"\(text.prefix(80))\"")
 
-        // Hide panel, wait for target app to regain focus, then insert
-        soundwavePanel.hide()
-        try? await Task.sleep(for: .milliseconds(350))
+        // Panel stays visible (nonactivating — target app keeps focus).
+        // Small delay lets any focus changes settle before the insert.
+        try? await Task.sleep(for: .milliseconds(150))
 
-        let result = textInserter.insert(text: text)
-        switch result {
-        case .accessibilityInserted, .pastedViaKeyboard:
-            break   // text landed in the field — no extra feedback needed
-        case .copiedToClipboard:
-            soundwavePanel.showCopied()
-        }
+        let _ = textInserter.insert(text: text)
+
+        // Always show completion feedback then auto-hide with exit animation
+        soundwavePanel.showCopied()
 
         state = .idle
     }

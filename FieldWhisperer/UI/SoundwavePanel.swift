@@ -4,9 +4,15 @@ import SwiftUI
 /// A borderless, always-on-top floating NSPanel that hosts the soundwave animation.
 /// It never steals keyboard focus (.nonactivatingPanel) and follows the user across
 /// Spaces (.canJoinAllSpaces).
+///
+/// Entry/exit animations are driven purely by SwiftUI (scale + offset + opacity spring),
+/// so the NSPanel itself is always fully opaque — no NSAnimationContext needed.
 final class SoundwavePanel: NSPanel {
 
     private let viewModel: SoundwaveViewModel
+
+    /// Cancellable auto-hide work item (used by showCopied).
+    private var pendingHide: DispatchWorkItem?
 
     init(viewModel: SoundwaveViewModel) {
         self.viewModel = viewModel
@@ -24,7 +30,7 @@ final class SoundwavePanel: NSPanel {
         hasShadow          = false
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         isMovableByWindowBackground = false
-        alphaValue         = 0
+        alphaValue         = 1.0   // SwiftUI controls visual opacity via isVisible
 
         let content = NSHostingView(rootView: SoundwaveView(viewModel: viewModel))
         content.frame = NSRect(x: 0, y: 0, width: 320, height: 56)
@@ -34,13 +40,21 @@ final class SoundwavePanel: NSPanel {
     // MARK: - Show / update / hide
 
     func show() {
+        pendingHide?.cancel()
+        pendingHide = nil
+
         positionAtTopCenter()
         viewModel.state    = .recording
         viewModel.liveText = ""
-        if !isVisible { orderFront(nil) }
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.2
-            self.animator().alphaValue = 1.0
+        viewModel.isVisible = false   // start collapsed so the spring has somewhere to come from
+
+        orderFront(nil)
+
+        // Kick off entry on next runloop tick so SwiftUI renders the initial collapsed state first
+        DispatchQueue.main.async {
+            withAnimation(.spring(response: 0.48, dampingFraction: 0.62)) {
+                self.viewModel.isVisible = true
+            }
         }
     }
 
@@ -50,17 +64,14 @@ final class SoundwavePanel: NSPanel {
     }
 
     func showCopied() {
+        pendingHide?.cancel()
+
         viewModel.state    = .copied
         viewModel.liveText = ""
-        positionAtTopCenter()
-        if !isVisible { orderFront(nil) }
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.2
-            self.animator().alphaValue = 1.0
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
-            self?.hide()
-        }
+        // Panel is already visible — just update state then auto-hide after a beat
+        let item = DispatchWorkItem { [weak self] in self?.hide() }
+        pendingHide = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6, execute: item)
     }
 
     func updateLevel(_ level: Float) {
@@ -73,17 +84,23 @@ final class SoundwavePanel: NSPanel {
     }
 
     func hide() {
-        NSAnimationContext.runAnimationGroup({ ctx in
-            ctx.duration = 0.3
-            self.animator().alphaValue = 0
-        }, completionHandler: {
-            self.orderOut(nil)
+        pendingHide?.cancel()
+        pendingHide = nil
+
+        // Exit animation: spring back up and shrink — reverse of entry
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) {
+            viewModel.isVisible = false
+        }
+
+        // Remove the window after the spring has settled
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.orderOut(nil)
             MainActor.assumeIsolated {
-                self.viewModel.state    = .hidden
-                self.viewModel.liveText = ""
-                self.viewModel.audioLevel = 0
+                self?.viewModel.state     = .hidden
+                self?.viewModel.liveText  = ""
+                self?.viewModel.audioLevel = 0
             }
-        })
+        }
     }
 
     // MARK: - Positioning
