@@ -156,7 +156,7 @@ struct SoundwaveView: View {
 
     private var dotColor: Color {
         switch viewModel.state {
-        case .recording:    return .red
+        case .recording:    return Color(red: 0.25, green: 0.55, blue: 1.0)
         case .transcribing: return .orange
         case .copied:       return .green
         case .hidden:       return .clear
