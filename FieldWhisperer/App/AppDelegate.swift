@@ -61,6 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         print("[FieldWhisperer] Recording started")
         state = .recording
+        if ModelManager.soundFeedbackEnabled { NSSound(named: "Tink")?.play() }
         soundwavePanel.show()
         menuBarController.setRecordingIndicator(active: true)
         audioRecorder.start { [weak self] level in
@@ -79,10 +80,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         soundwavePanel.showTranscribing()
         menuBarController.setRecordingIndicator(active: false)
 
+        if ModelManager.soundFeedbackEnabled { NSSound(named: "Pop")?.play() }
+
         var textToInsert: String? = nil
         do {
             let text = try await transcriptionEngine.transcribe(audioSamples: samples)
-            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            var trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if ModelManager.fillerFilterEnabled {
+                trimmed = FillerWordFilter.filter(trimmed)
+            }
             textToInsert = trimmed.isEmpty ? nil : trimmed
         } catch {
             print("[FieldWhisperer] ❌ Transcription error: \(error.localizedDescription)")
@@ -93,6 +99,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             state = .idle
             return
         }
+
+        // Save to history and refresh menu before inserting
+        ModelManager.addToHistory(text)
+        menuBarController.rebuildMenu()
 
         print("[FieldWhisperer] Inserting: \"\(text.prefix(80))\"")
 
@@ -175,6 +185,14 @@ extension AppDelegate: MenuBarControllerDelegate {
 
     func menuBarControllerDidRequestQuit(_ controller: MenuBarController) {
         NSApp.terminate(nil)
+    }
+
+    func menuBarControllerDidRequestRepaste(_ controller: MenuBarController, text: String) {
+        Task {
+            // Small delay so the menu has fully closed before we try to insert
+            try? await Task.sleep(for: .milliseconds(200))
+            let _ = textInserter.insert(text: text)
+        }
     }
 }
 

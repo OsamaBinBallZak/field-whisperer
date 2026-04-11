@@ -5,6 +5,7 @@ import Combine
 protocol MenuBarControllerDelegate: AnyObject {
     func menuBarControllerDidRequestSettings(_ controller: MenuBarController)
     func menuBarControllerDidRequestQuit(_ controller: MenuBarController)
+    func menuBarControllerDidRequestRepaste(_ controller: MenuBarController, text: String)
 }
 
 /// Owns the NSStatusItem (menu bar icon) and rebuilds the menu whenever
@@ -55,19 +56,46 @@ final class MenuBarController: NSObject {
         status.isEnabled = false
         menu.addItem(status)
 
-        // Usage hint
+        // Usage hint (uses the currently selected hotkey symbol)
         if transcriptionEngine.isReady {
-            let hint = NSMenuItem(title: "Hold ⌥Space → speak → release to paste",
-                                  action: nil, keyEquivalent: "")
+            let symbol = ModelManager.selectedHotkey.symbol
+            let hintString = "Hold \(symbol) → speak → release to paste"
+            let hint = NSMenuItem(title: hintString, action: nil, keyEquivalent: "")
             hint.isEnabled = false
             hint.attributedTitle = NSAttributedString(
-                string: "Hold ⌥Space → speak → release to paste",
+                string: hintString,
                 attributes: [.font: NSFont.systemFont(ofSize: 11),
                              .foregroundColor: NSColor.secondaryLabelColor])
             menu.addItem(hint)
         }
 
         menu.addItem(.separator())
+
+        // Recent Transcriptions submenu
+        if !ModelManager.history.isEmpty {
+            let historyItem = NSMenuItem(title: "Recent Transcriptions", action: nil, keyEquivalent: "")
+            let historyMenu = NSMenu()
+
+            for entry in ModelManager.history.prefix(10) {
+                let item = NSMenuItem(title: entry.menuTitle,
+                                     action: #selector(repaste(_:)),
+                                     keyEquivalent: "")
+                item.representedObject = entry.text
+                item.target = self
+                historyMenu.addItem(item)
+            }
+
+            historyMenu.addItem(.separator())
+            let clearItem = NSMenuItem(title: "Clear History",
+                                       action: #selector(clearHistory),
+                                       keyEquivalent: "")
+            clearItem.target = self
+            historyMenu.addItem(clearItem)
+
+            historyItem.submenu = historyMenu
+            menu.addItem(historyItem)
+            menu.addItem(.separator())
+        }
 
         // Settings
         let settingsItem = NSMenuItem(title: "Settings…",
@@ -123,5 +151,15 @@ final class MenuBarController: NSObject {
 
     @objc private func quit() {
         delegate?.menuBarControllerDidRequestQuit(self)
+    }
+
+    @objc private func repaste(_ sender: NSMenuItem) {
+        guard let text = sender.representedObject as? String else { return }
+        delegate?.menuBarControllerDidRequestRepaste(self, text: text)
+    }
+
+    @objc private func clearHistory() {
+        ModelManager.clearHistory()
+        rebuildMenu()
     }
 }

@@ -6,8 +6,10 @@ struct SettingsView: View {
     @ObservedObject var transcriptionEngine: TranscriptionEngine
     var appDelegate: AppDelegate
 
-    @State private var selectedModel:    String = ModelManager.selectedModel
-    @State private var selectedHotkeyID: String = ModelManager.selectedHotkeyID
+    @State private var selectedModel:        String = ModelManager.selectedModel
+    @State private var selectedHotkeyID:    String = ModelManager.selectedHotkeyID
+    @State private var fillerFilterEnabled: Bool   = ModelManager.fillerFilterEnabled
+    @State private var soundFeedbackEnabled: Bool  = ModelManager.soundFeedbackEnabled
     @State private var axGranted        = false
     @State private var micGranted       = false
     @State private var micNotDetermined = false
@@ -75,6 +77,24 @@ struct SettingsView: View {
                     .foregroundColor(.secondary)
             }
 
+            // MARK: Transcription options
+            Section {
+                Toggle("Remove filler words", isOn: $fillerFilterEnabled)
+                    .onChange(of: fillerFilterEnabled) { _, newValue in
+                        ModelManager.fillerFilterEnabled = newValue
+                    }
+                Toggle("Sound feedback", isOn: $soundFeedbackEnabled)
+                    .onChange(of: soundFeedbackEnabled) { _, newValue in
+                        ModelManager.soundFeedbackEnabled = newValue
+                    }
+            } header: {
+                Text("Options")
+            } footer: {
+                Text("Filler words: removes \"um\", \"uh\", \"hmm\" and similar from transcriptions.\nSound feedback: plays a soft chime when recording starts and stops.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
             // MARK: Permissions
             Section {
                 // Accessibility
@@ -112,7 +132,7 @@ struct SettingsView: View {
                     Spacer()
                     Text("v1.0").foregroundColor(.secondary)
                 }
-                Text("Hold \(ModelManager.availableHotkeys.first(where: { $0.id == selectedHotkeyID })?.label ?? "⌥Space") to record, release to transcribe and paste into any text field.")
+                Text("Hold \(ModelManager.availableHotkeys.first(where: { $0.id == selectedHotkeyID })?.symbol ?? "⌥Space") to record, release to transcribe and paste into any text field.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
