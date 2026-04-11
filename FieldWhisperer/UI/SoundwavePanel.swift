@@ -72,6 +72,7 @@ final class SoundwavePanel: NSPanel {
 
         viewModel.state    = .copied
         viewModel.liveText = ""
+        NSSound(named: "Tink")?.play()   // subtle chime tied to the insertion moment
         // Panel is already visible — just update state then auto-hide after a beat
         let item = DispatchWorkItem { [weak self] in self?.hide() }
         pendingHide = item

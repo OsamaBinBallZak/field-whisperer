@@ -78,13 +78,20 @@ struct SoundwaveView: View {
 
             // Inner animated pill — 320×56
             ZStack {
-                // Full-lozenge (capsule) dark background
+                // Frosted glass background: material blur + dark tint + hairline rim
                 Capsule()
-                    .fill(Color(red: 0.1, green: 0.1, blue: 0.12).opacity(0.94))
-                    .shadow(color: .black.opacity(0.5), radius: 18, y: 7)
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        Capsule()
+                            .fill(Color(red: 0.02, green: 0.02, blue: 0.08).opacity(0.55))
+                    )
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(Color.white.opacity(0.10), lineWidth: 0.5)
+                    )
 
                 HStack(spacing: 0) {
-                    // Mic / clipboard icon
+                    // Mic / checkmark icon — always white, dot carries state colour
                     Image(systemName: iconName)
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(iconColor)
@@ -101,13 +108,11 @@ struct SoundwaveView: View {
                             .padding(.horizontal, 8)
 
                     case .transcribing:
-                        HStack(spacing: 6) {
-                            ProgressView()
-                                .scaleEffect(0.75)
-                                .tint(.white.opacity(0.6))
-                            Text("Transcribing…")
+                        HStack(spacing: 8) {
+                            Text("Transcribing")
                                 .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(.white.opacity(0.6))
+                                .foregroundColor(.white.opacity(0.55))
+                            TranscribingDotsView()
                         }
                         Spacer()
 
@@ -123,17 +128,17 @@ struct SoundwaveView: View {
                         Spacer()
                     }
 
-                    // Status dot
-                    Circle()
-                        .fill(dotColor)
-                        .frame(width: 8, height: 8)
-                        .padding(.leading, 6)
-                        .padding(.trailing, 16)
+                    // Animated status dot — glows and pulses during recording
+                    AnimatedDot(color: dotColor, animate: viewModel.state == .recording)
+                        .padding(.leading, 2)
+                        .padding(.trailing, 12)
                         .opacity(viewModel.state == .hidden ? 0 : 1)
                 }
             }
             .frame(width: 320, height: 56)
             .clipShape(Capsule())
+            // Shadow sits outside the clip so it renders on the whole capsule shape
+            .shadow(color: .black.opacity(0.45), radius: 16, y: 6)
             // Entry / exit animation driven by isVisible
             .scaleEffect(viewModel.isVisible ? 1.0 : 0.78)
             .offset(y: viewModel.isVisible ? 0 : -18)
@@ -151,9 +156,8 @@ struct SoundwaveView: View {
 
     private var iconColor: Color {
         switch viewModel.state {
-        case .recording: return .red
-        case .copied:    return .green
-        default:         return .white.opacity(0.55)
+        case .copied: return .green
+        default:      return .white.opacity(0.55)
         }
     }
 
@@ -164,6 +168,65 @@ struct SoundwaveView: View {
         case .copied:       return .green
         case .hidden:       return .clear
         }
+    }
+}
+
+// MARK: - Animated status dot
+
+/// A status dot with a radial-gradient core and a soft breathing halo when active.
+struct AnimatedDot: View {
+    let color: Color
+    let animate: Bool
+
+    @State private var pulse = false
+
+    var body: some View {
+        ZStack {
+            // Outer breathing halo
+            Circle()
+                .fill(color.opacity(pulse ? 0.28 : 0.0))
+                .frame(width: 18, height: 18)
+            // Core — radial gradient from bright centre to softer edge
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [color, color.opacity(0.55)],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: 4
+                    )
+                )
+                .frame(width: 8, height: 8)
+                .scaleEffect(pulse && animate ? 1.12 : 1.0)
+        }
+        .animation(
+            animate
+                ? .easeInOut(duration: 1.3).repeatForever(autoreverses: true)
+                : .easeOut(duration: 0.2),
+            value: pulse
+        )
+        .onAppear        { pulse = animate }
+        .onChange(of: animate) { _, v in pulse = v }
+    }
+}
+
+// MARK: - Transcribing dots
+
+/// Three small circles that bounce in a staggered wave — replaces the static ProgressView.
+struct TranscribingDotsView: View {
+    @State private var phase: Double = 0
+    private let timer = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        HStack(spacing: 5) {
+            ForEach(0..<3, id: \.self) { i in
+                Circle()
+                    .fill(Color.white.opacity(0.45))
+                    .frame(width: 5, height: 5)
+                    .offset(y: CGFloat(-sin(phase + Double(i) * .pi * 2 / 3) * 4))
+            }
+        }
+        .onReceive(timer) { _ in phase += 0.14 }
     }
 }
 
@@ -199,10 +262,10 @@ struct ScrollingLiveText: View {
         .mask(
             LinearGradient(
                 stops: [
-                    .init(color: .clear,  location: 0.00),
-                    .init(color: .black,  location: 0.12),
-                    .init(color: .black,  location: 0.82),
-                    .init(color: .clear,  location: 1.00)
+                    .init(color: .clear, location: 0.00),
+                    .init(color: .black, location: 0.12),
+                    .init(color: .black, location: 0.82),
+                    .init(color: .clear, location: 1.00)
                 ],
                 startPoint: .leading,
                 endPoint:   .trailing
