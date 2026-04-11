@@ -9,7 +9,7 @@ struct SettingsView: View {
     @State private var selectedModel:        String = ModelManager.selectedModel
     @State private var selectedHotkeyID:    String = ModelManager.selectedHotkeyID
     @State private var fillerFilterEnabled: Bool   = ModelManager.fillerFilterEnabled
-    @State private var soundFeedbackEnabled: Bool  = ModelManager.soundFeedbackEnabled
+
     @State private var axGranted        = false
     @State private var micGranted       = false
     @State private var micNotDetermined = false
@@ -83,10 +83,7 @@ struct SettingsView: View {
                     .onChange(of: fillerFilterEnabled) { _, newValue in
                         ModelManager.fillerFilterEnabled = newValue
                     }
-                Toggle("Completion sound", isOn: $soundFeedbackEnabled)
-                    .onChange(of: soundFeedbackEnabled) { _, newValue in
-                        ModelManager.soundFeedbackEnabled = newValue
-                    }
+
             } header: {
                 Text("Options")
             } footer: {

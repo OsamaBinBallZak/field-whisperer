@@ -171,6 +171,7 @@ struct SoundwaveView: View {
 
 /// Single-line text that types characters one-at-a-time via TypingViewModel,
 /// then instantly scrolls to keep the latest character in view.
+/// Left and right edges fade to transparent so text appears to emerge from / vanish into nothing.
 /// The typing cadence (70 ms/char) IS the animation — no SwiftUI scroll animation needed.
 struct ScrollingLiveText: View {
     let text: String
@@ -182,7 +183,7 @@ struct ScrollingLiveText: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 Text(typer.displayedText.isEmpty ? " " : typer.displayedText)
                     .font(.system(size: 12, weight: .regular))
-                    .foregroundColor(.white.opacity(typer.displayedText.isEmpty ? 0 : 0.88))
+                    .foregroundColor(.white.opacity(typer.displayedText.isEmpty ? 0 : 0.40))
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
                     .id("end")
@@ -194,6 +195,19 @@ struct ScrollingLiveText: View {
                 proxy.scrollTo("end", anchor: .trailing)
             }
         }
+        // Gradient mask: text fades in from the left and fades out to the right
+        .mask(
+            LinearGradient(
+                stops: [
+                    .init(color: .clear,  location: 0.00),
+                    .init(color: .black,  location: 0.12),
+                    .init(color: .black,  location: 0.82),
+                    .init(color: .clear,  location: 1.00)
+                ],
+                startPoint: .leading,
+                endPoint:   .trailing
+            )
+        )
         .onChange(of: text) { _, newValue in
             typer.updateTarget(newValue)
         }

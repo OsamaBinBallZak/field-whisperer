@@ -66,15 +66,6 @@ enum ModelManager {
         set { UserDefaults.standard.set(newValue, forKey: "fillerFilterEnabled") }
     }
 
-    /// Default true — play a soft sound when recording starts and stops.
-    static var soundFeedbackEnabled: Bool {
-        get {
-            guard UserDefaults.standard.object(forKey: "soundFeedbackEnabled") != nil else { return true }
-            return UserDefaults.standard.bool(forKey: "soundFeedbackEnabled")
-        }
-        set { UserDefaults.standard.set(newValue, forKey: "soundFeedbackEnabled") }
-    }
-
     // MARK: - Transcription history
 
     struct TranscriptionEntry {

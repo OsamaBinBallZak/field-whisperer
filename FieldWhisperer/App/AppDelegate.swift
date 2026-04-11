@@ -79,8 +79,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         soundwavePanel.showTranscribing()
         menuBarController.setRecordingIndicator(active: false)
 
-        if ModelManager.soundFeedbackEnabled { NSSound(named: "Pop")?.play() }
-
         var textToInsert: String? = nil
         do {
             let text = try await transcriptionEngine.transcribe(audioSamples: samples)
