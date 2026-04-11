@@ -15,6 +15,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private enum AppState { case idle, recording, transcribing }
     private var state: AppState = .idle
 
+    /// PID of the app that was frontmost when recording began — captured before
+    /// the floating panel appears so Cmd+V can be targeted precisely at that process.
+    private var insertionTargetPid: pid_t? = nil
+
     // Live transcription: runs WhisperKit on the growing buffer every N seconds
     private var liveTranscriptionTask: Task<Void, Never>?
     private let liveTranscriptionInterval: TimeInterval = 3.0
@@ -61,6 +65,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         print("[FieldWhisperer] Recording started")
         state = .recording
+        // Capture before the panel appears — frontmostApplication is accurate here
+        insertionTargetPid = NSWorkspace.shared.frontmostApplication?.processIdentifier
         soundwavePanel.show()
         menuBarController.setRecordingIndicator(active: true)
         audioRecorder.start { [weak self] level in
@@ -107,7 +113,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Small delay lets any focus changes settle before the insert.
         try? await Task.sleep(for: .milliseconds(150))
 
-        let _ = textInserter.insert(text: text)
+        let _ = textInserter.insert(text: text, targetPid: insertionTargetPid)
+        insertionTargetPid = nil
 
         // Always show completion feedback then auto-hide with exit animation
         soundwavePanel.showCopied()
@@ -182,10 +189,12 @@ extension AppDelegate: MenuBarControllerDelegate {
     }
 
     func menuBarControllerDidRequestRepaste(_ controller: MenuBarController, text: String) {
+        // Capture frontmost app now (before menu closes and focus changes)
+        let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier
         Task {
             // Small delay so the menu has fully closed before we try to insert
             try? await Task.sleep(for: .milliseconds(200))
-            let _ = textInserter.insert(text: text)
+            let _ = textInserter.insert(text: text, targetPid: pid)
         }
     }
 }

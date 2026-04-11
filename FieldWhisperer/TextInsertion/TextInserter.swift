@@ -7,17 +7,18 @@ enum InsertionResult {
     case copiedToClipboard      // both methods unavailable — user must ⌘V manually
 }
 
-/// Inserts text into the currently focused UI element.
+/// Inserts text into the app that was frontmost when recording began.
 ///
 /// Strategy (in order):
 /// 1. Always copy to clipboard (universal failsafe).
-/// 2. Try Accessibility API (direct insert — works in Notes, TextEdit, Xcode, Terminal…).
-/// 3. Simulate Cmd+V (works in Slack, Claude, browsers, Electron apps).
-///    If this fires, the caller shows a brief "Pasted!" confirmation.
-/// 4. If all else fails, text is already on clipboard — caller shows "Copied! ⌘V".
+/// 2. Try Accessibility API direct insert — works in Notes, TextEdit, Xcode, Terminal.
+/// 3. Send Cmd+V directly to the target process by PID — works in Slack, Claude,
+///    browsers, and any Electron app regardless of AX attribute support.
+///    Skipped only when the target is Finder/Desktop (would cause a pop sound).
+/// 4. Text is already on clipboard — user can ⌘V manually.
 final class TextInserter {
 
-    func insert(text: String) -> InsertionResult {
+    func insert(text: String, targetPid: pid_t? = nil) -> InsertionResult {
         // Step 1: always put text on clipboard
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
@@ -29,10 +30,12 @@ final class TextInserter {
             return .accessibilityInserted
         }
 
-        // Step 3: simulate Cmd+V — but only when there's a focused text element.
-        // Without this guard, Cmd+V lands in Finder/desktop and macOS plays a pop sound.
-        if hasFocusedTextElement(), simulateCmdV() {
-            print("[FieldWhisperer] ✅ Pasted via Cmd+V simulation")
+        // Step 3: send Cmd+V to the specific process that was frontmost at record-start.
+        // Using postToPid bypasses any focus ambiguity introduced by the floating panel.
+        // Only skip Finder — it's the sole app that produces a system pop sound for
+        // an unhandled paste (desktop/icon selection with nothing to paste into).
+        if let pid = targetPid, !isFinderPid(pid), simulateCmdV(targetPid: pid) {
+            print("[FieldWhisperer] ✅ Pasted via Cmd+V to PID \(pid)")
             return .pastedViaKeyboard
         }
 
@@ -67,43 +70,10 @@ final class TextInserter {
         ) == .success
     }
 
-    // MARK: - Focus check
-
-    /// Returns true when Cmd+V should be attempted.
-    ///
-    /// The macOS error chime only occurs when Cmd+V lands on Finder/Desktop — no
-    /// other app produces a system-level pop for an unhandled paste. So the only
-    /// case we need to block is Finder-as-frontmost-app with no text field open.
-    /// For every other app (Electron, native, browser) we let Cmd+V through.
-    private func hasFocusedTextElement() -> Bool {
-        let frontmost = NSWorkspace.shared.frontmostApplication
-
-        // Not Finder — Electron (Slack, Claude) and native apps handle Cmd+V silently.
-        // Verify at least something is focused before firing (handles "no app at all").
-        guard frontmost?.bundleIdentifier == "com.apple.finder" else {
-            let sys = AXUIElementCreateSystemWide()
-            var raw: CFTypeRef?
-            return AXUIElementCopyAttributeValue(
-                sys, kAXFocusedUIElementAttribute as CFString, &raw
-            ) == .success && raw != nil
-        }
-
-        // Finder is frontmost: only paste into an active text element, e.g. an
-        // inline-rename field. Everything else (desktop, icon selection) → skip.
-        let sys = AXUIElementCreateSystemWide()
-        var raw: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(
-            sys, kAXFocusedUIElementAttribute as CFString, &raw
-        ) == .success, let raw else { return false }
-        let elem = raw as! AXUIElement
-        var dummy: CFTypeRef?
-        return AXUIElementCopyAttributeValue(elem, kAXValueAttribute as CFString, &dummy) == .success
-    }
-
     // MARK: - Cmd+V simulation
 
     @discardableResult
-    private func simulateCmdV() -> Bool {
+    private func simulateCmdV(targetPid: pid_t) -> Bool {
         let source = CGEventSource(stateID: .combinedSessionState)
         let vKey: CGKeyCode = 9   // V
 
@@ -113,9 +83,15 @@ final class TextInserter {
 
         down.flags = .maskCommand
         up.flags   = .maskCommand
-        // .cgSessionEventTap injects at session level — reaches the frontmost app
-        down.post(tap: .cgSessionEventTap)
-        up.post(tap:   .cgSessionEventTap)
+        // Post directly to the target process — no dependency on system focus state
+        down.postToPid(targetPid)
+        up.postToPid(targetPid)
         return true
+    }
+
+    // MARK: - Helpers
+
+    private func isFinderPid(_ pid: pid_t) -> Bool {
+        NSRunningApplication(processIdentifier: pid)?.bundleIdentifier == "com.apple.finder"
     }
 }
