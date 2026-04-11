@@ -87,6 +87,21 @@ Shows current status of Microphone and Accessibility and provides quick links to
 
 ---
 
+## Running without Xcode
+
+You only need Xcode once to build the release binary:
+
+1. Open Xcode → select the **FieldWhisperer** scheme
+2. Change the destination to **My Mac**
+3. **Product → Archive** (or `⇧⌘K` to clean, then `⌘B` for a Release build)
+4. In the **Organizer** (or `~/Library/Developer/Xcode/DerivedData/…/Build/Products/Release/`) find **FieldWhisperer.app**
+5. Drag it to `/Applications`
+6. Launch from Spotlight or `/Applications` — Xcode never needs to be open again
+
+> **After moving to /Applications**, re-add the app in **System Settings → Privacy & Security → Accessibility** (remove the old entry, add the new one) because the binary path changed. You only do this once.
+
+---
+
 ## Architecture
 
 ```
