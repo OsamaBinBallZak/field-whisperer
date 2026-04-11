@@ -10,7 +10,7 @@ import AVFoundation
 /// callback fires, startEngine() is never called, preventing double-tap crashes.
 final class AudioRecorder {
 
-    private let engine = AVAudioEngine()
+    private var engine = AVAudioEngine()
     private var samples: [Float] = []
     private var levelCallback: ((Float) -> Void)?
     private var tapInstalled = false
@@ -75,10 +75,9 @@ final class AudioRecorder {
             engine.inputNode.removeTap(onBus: 0)
             tapInstalled = false
         }
-        if engine.isRunning {
-            engine.stop()
-            engine.reset()  // releases CoreAudio unit graph; lets macOS restore device defaults
-        }
+        if engine.isRunning { engine.stop() }
+        engine.reset()
+        engine = AVAudioEngine()  // new instance fully releases the CoreAudio device
         samples.removeAll(keepingCapacity: true)
     }
 

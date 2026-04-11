@@ -138,6 +138,12 @@ struct SoundwaveView: View {
             }
             .frame(width: 320, height: 56)
             .clipShape(Capsule())
+            // Thin state-coloured halo border — animates with state colour
+            .overlay(
+                Capsule()
+                    .strokeBorder(dotColor.opacity(0.28), lineWidth: 0.75)
+                    .animation(.easeInOut(duration: 0.4), value: viewModel.state)
+            )
             // Shadow sits outside the clip so it renders on the whole capsule shape
             .shadow(color: .black.opacity(0.45), radius: 16, y: 6)
             // Entry / exit animation driven by isVisible
@@ -174,59 +180,66 @@ struct SoundwaveView: View {
 
 // MARK: - Animated status dot
 
-/// Three-layer LED-style dot: dark housing/bezel, offset-specular lit core,
-/// and a soft bloom that bleeds outward during recording.
+/// Three-layer LED-style dot: always fully visible.
+/// During recording a light-streak shimmer sweeps slowly across the surface.
+/// No pulse-away — the dot stays lit at all times; only the shimmer moves.
 struct AnimatedDot: View {
     let color: Color
     let animate: Bool
 
-    @State private var pulse = false
+    @State private var shimmerX: CGFloat = -0.6
 
     var body: some View {
         ZStack {
-            // Layer 1: outer bloom — blurred glow bleeding outside the housing
+            // Layer 1: static outer glow — always present, no pulsing
             Circle()
-                .fill(color)
-                .frame(width: 22, height: 22)
-                .blur(radius: 5)
-                .opacity(animate ? (pulse ? 0.50 : 0.08) : 0)
+                .fill(color.opacity(0.22))
+                .frame(width: 20, height: 20)
+                .blur(radius: 4)
+                .opacity(animate ? 1.0 : 0.0)
 
-            // Layer 2: dark housing/bezel ring
+            // Layer 2: dark housing / bezel
             Circle()
                 .fill(Color(white: 0.10))
                 .frame(width: 14, height: 14)
-                .overlay(Circle().strokeBorder(Color(white: 0.25), lineWidth: 0.5))
+                .overlay(Circle().strokeBorder(Color(white: 0.22), lineWidth: 0.5))
 
-            // Layer 3: inner lit core — off-centre radial gradient creates a
-            // top-left specular highlight matching the reference LED image
+            // Layer 3: permanently lit core with off-centre specular highlight
             Circle()
                 .fill(
                     RadialGradient(
-                        colors: [.white, color, color.opacity(0.35)],
+                        colors: [.white.opacity(0.85), color, color.opacity(0.35)],
                         center: UnitPoint(x: 0.35, y: 0.28),
                         startRadius: 0,
                         endRadius: 5
                     )
                 )
                 .frame(width: 9, height: 9)
-                .opacity(animate ? (pulse ? 1.0 : 0.45) : 0.20)
-                .scaleEffect(animate ? (pulse ? 1.0 : 0.82) : 0.65)
+
+            // Layer 4: shimmer streak — only visible during recording
+            if animate {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [.clear, .white.opacity(0.50), .clear],
+                            startPoint: UnitPoint(x: shimmerX - 0.4, y: 0.1),
+                            endPoint:   UnitPoint(x: shimmerX + 0.4, y: 0.9)
+                        )
+                    )
+                    .frame(width: 9, height: 9)
+            }
         }
         .frame(width: 22, height: 22)
-        .onAppear {
-            guard animate else { return }
-            withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
-                pulse = true
-            }
-        }
-        .onChange(of: animate) { _, v in
-            if v {
-                withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
-                    pulse = true
-                }
-            } else {
-                withAnimation(.easeOut(duration: 0.3)) { pulse = false }
-            }
+        // Smooth colour crossfade when state changes (recording → transcribing → copied)
+        .animation(.easeOut(duration: 0.4), value: color)
+        .onAppear      { if animate { startShimmer() } }
+        .onChange(of: animate) { _, v in if v { startShimmer() } }
+    }
+
+    private func startShimmer() {
+        shimmerX = -0.6
+        withAnimation(.linear(duration: 2.8).repeatForever(autoreverses: false)) {
+            shimmerX = 1.6
         }
     }
 }

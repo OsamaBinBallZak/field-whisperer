@@ -67,16 +67,20 @@ final class SoundwavePanel: NSPanel {
     }
 
     func showTranscribing() {
-        viewModel.state    = .transcribing
-        viewModel.liveText = ""
+        withAnimation(.easeInOut(duration: 0.35)) {
+            viewModel.state    = .transcribing
+            viewModel.liveText = ""
+        }
     }
 
     func showCopied() {
         pendingHide?.cancel()
 
-        viewModel.state    = .copied
-        viewModel.liveText = ""
-        if let url = Bundle.main.url(forResource: "field-whisperer-send-sound", withExtension: "wav") {
+        withAnimation(.easeInOut(duration: 0.35)) {
+            viewModel.state    = .copied
+            viewModel.liveText = ""
+        }
+        if let url = Bundle.main.url(forResource: "field-whisperer-scribble-sound", withExtension: "mp3") {
             if let player = try? AVAudioPlayer(contentsOf: url) {
                 player.volume = 1.0
                 player.play()
@@ -85,7 +89,7 @@ final class SoundwavePanel: NSPanel {
                 print("[FieldWhisperer] ⚠️ AVAudioPlayer init failed for completion sound")
             }
         } else {
-            print("[FieldWhisperer] ⚠️ completion sound not found in bundle")
+            print("[FieldWhisperer] ⚠️ completion sound not found in bundle — expected: field-whisperer-scribble-sound.mp3")
         }
         // Panel is already visible — just update state then auto-hide after a beat
         let item = DispatchWorkItem { [weak self] in self?.hide() }
