@@ -77,6 +77,7 @@ final class AudioRecorder {
         }
         if engine.isRunning {
             engine.stop()
+            engine.reset()  // releases CoreAudio unit graph; lets macOS restore device defaults
         }
         samples.removeAll(keepingCapacity: true)
     }
