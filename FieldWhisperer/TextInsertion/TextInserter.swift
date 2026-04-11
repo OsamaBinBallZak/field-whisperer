@@ -69,34 +69,35 @@ final class TextInserter {
 
     // MARK: - Focus check
 
-    /// Returns true if the system-wide focused element is a text-editing context.
-    /// Prevents Cmd+V from firing into Finder/desktop (which triggers a pop sound).
-    /// Three-layer check covers: native apps, Electron apps (Slack, Claude), and empty fields.
+    /// Returns true when Cmd+V should be attempted.
+    ///
+    /// The macOS error chime only occurs when Cmd+V lands on Finder/Desktop — no
+    /// other app produces a system-level pop for an unhandled paste. So the only
+    /// case we need to block is Finder-as-frontmost-app with no text field open.
+    /// For every other app (Electron, native, browser) we let Cmd+V through.
     private func hasFocusedTextElement() -> Bool {
+        let frontmost = NSWorkspace.shared.frontmostApplication
+
+        // Not Finder — Electron (Slack, Claude) and native apps handle Cmd+V silently.
+        // Verify at least something is focused before firing (handles "no app at all").
+        guard frontmost?.bundleIdentifier == "com.apple.finder" else {
+            let sys = AXUIElementCreateSystemWide()
+            var raw: CFTypeRef?
+            return AXUIElementCopyAttributeValue(
+                sys, kAXFocusedUIElementAttribute as CFString, &raw
+            ) == .success && raw != nil
+        }
+
+        // Finder is frontmost: only paste into an active text element, e.g. an
+        // inline-rename field. Everything else (desktop, icon selection) → skip.
         let sys = AXUIElementCreateSystemWide()
         var raw: CFTypeRef?
         guard AXUIElementCopyAttributeValue(
             sys, kAXFocusedUIElementAttribute as CFString, &raw
         ) == .success, let raw else { return false }
         let elem = raw as! AXUIElement
-
         var dummy: CFTypeRef?
-        // kAXValueAttribute — native text fields (Notes, TextEdit, Xcode, Terminal)
-        if AXUIElementCopyAttributeValue(elem, kAXValueAttribute as CFString, &dummy) == .success {
-            return true
-        }
-        // "AXSelectedTextRange" — Electron/browser apps (Slack, Claude) expose this when
-        // a contenteditable or input element is focused inside the Chromium web layer
-        if AXUIElementCopyAttributeValue(elem, "AXSelectedTextRange" as CFString, &dummy) == .success {
-            return true
-        }
-        // Role-based fallback: empty native fields may not expose kAXValueAttribute
-        if AXUIElementCopyAttributeValue(elem, kAXRoleAttribute as CFString, &dummy) == .success,
-           let role = dummy as? String,
-           ["AXTextField", "AXTextArea", "AXComboBox"].contains(role) {
-            return true
-        }
-        return false
+        return AXUIElementCopyAttributeValue(elem, kAXValueAttribute as CFString, &dummy) == .success
     }
 
     // MARK: - Cmd+V simulation
