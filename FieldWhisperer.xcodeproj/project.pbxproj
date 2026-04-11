@@ -22,6 +22,7 @@
 		CF000047000000000000001A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CF000034000000000000001A /* Assets.xcassets */; };
 		CF000048000000000000001A /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = CF000053000000000000001A /* WhisperKit */; };
 		CF000055000000000000001A /* FillerWordFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF000054000000000000001A /* FillerWordFilter.swift */; };
+		CF000056000000000000001A /* field-whisperer-send-sound.wav in Resources */ = {isa = PBXBuildFile; fileRef = CF000057000000000000001A /* field-whisperer-send-sound.wav */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -42,6 +43,7 @@
 		CF000032000000000000001A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		CF000033000000000000001A /* FieldWhisperer.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FieldWhisperer.entitlements; sourceTree = "<group>"; };
 		CF000034000000000000001A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		CF000057000000000000001A /* field-whisperer-send-sound.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "field-whisperer-send-sound.wav"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -139,6 +141,7 @@
 				CF000032000000000000001A /* Info.plist */,
 				CF000033000000000000001A /* FieldWhisperer.entitlements */,
 				CF000034000000000000001A /* Assets.xcassets */,
+				CF000057000000000000001A /* field-whisperer-send-sound.wav */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -216,6 +219,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				CF000047000000000000001A /* Assets.xcassets in Resources */,
+				CF000056000000000000001A /* field-whisperer-send-sound.wav in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

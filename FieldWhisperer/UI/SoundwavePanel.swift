@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import SwiftUI
 
 /// A borderless, always-on-top floating NSPanel that hosts the soundwave animation.
@@ -17,6 +18,9 @@ final class SoundwavePanel: NSPanel {
 
     /// Cancellable auto-hide work item (used by showCopied).
     private var pendingHide: DispatchWorkItem?
+
+    /// Retained so the player isn't deallocated before playback finishes.
+    private var completionPlayer: AVAudioPlayer?
 
     init(viewModel: SoundwaveViewModel) {
         self.viewModel = viewModel
@@ -72,7 +76,12 @@ final class SoundwavePanel: NSPanel {
 
         viewModel.state    = .copied
         viewModel.liveText = ""
-        if let sound = NSSound(named: "Bottle") { sound.volume = 0.5; sound.play() }
+        if let url = Bundle.main.url(forResource: "field-whisperer-send-sound", withExtension: "wav"),
+           let player = try? AVAudioPlayer(contentsOf: url) {
+            player.volume = 0.5
+            player.play()
+            completionPlayer = player   // retain until playback finishes
+        }
         // Panel is already visible — just update state then auto-hide after a beat
         let item = DispatchWorkItem { [weak self] in self?.hide() }
         pendingHide = item
