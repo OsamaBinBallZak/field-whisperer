@@ -78,18 +78,10 @@ struct SoundwaveView: View {
 
             // Inner animated pill — 320×56
             ZStack {
-                // Frosted glass background: strong blur base, very light dark tint,
-                // and a white rim so the edge reads as glass rather than grey fog.
+                // Solid dark background for maximum contrast
                 Capsule()
-                    .fill(.regularMaterial)
-                    .overlay(
-                        Capsule()
-                            .fill(Color(red: 0.04, green: 0.04, blue: 0.10).opacity(0.18))
-                    )
-                    .overlay(
-                        Capsule()
-                            .strokeBorder(Color.white.opacity(0.18), lineWidth: 0.75)
-                    )
+                    .fill(Color(red: 0.1, green: 0.1, blue: 0.12).opacity(0.94))
+                    .shadow(color: .black.opacity(0.5), radius: 18, y: 7)
 
                 HStack(spacing: 0) {
                     // Mic / checkmark icon — always white, dot carries state colour

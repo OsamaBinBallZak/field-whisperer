@@ -72,7 +72,7 @@ final class SoundwavePanel: NSPanel {
 
         viewModel.state    = .copied
         viewModel.liveText = ""
-        NSSound(named: "Bottle")?.play()  // friendly bloop tied to the insertion moment
+        if let sound = NSSound(named: "Bottle") { sound.volume = 0.5; sound.play() }
         // Panel is already visible — just update state then auto-hide after a beat
         let item = DispatchWorkItem { [weak self] in self?.hide() }
         pendingHide = item
