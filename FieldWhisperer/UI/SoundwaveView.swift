@@ -23,60 +23,61 @@ struct SoundwaveView: View {
 
     var body: some View {
         ZStack {
+            // Dark high-contrast pill
             RoundedRectangle(cornerRadius: 20)
-                .fill(.ultraThinMaterial)
-                .shadow(color: .black.opacity(0.25), radius: 14, y: 5)
+                .fill(Color(red: 0.1, green: 0.1, blue: 0.12).opacity(0.94))
+                .shadow(color: .black.opacity(0.45), radius: 16, y: 6)
 
-            HStack(spacing: 10) {
+            HStack(spacing: 0) {
+                // Mic / clipboard icon
                 Image(systemName: iconName)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(iconColor)
                     .padding(.leading, 14)
+                    .padding(.trailing, 10)
 
                 switch viewModel.state {
+                case .recording:
+                    // Bars always visible at fixed width
+                    SoundwaveBars(audioLevel: viewModel.audioLevel)
+                        .frame(width: 36)
+                    // Scrolling live text fills the remaining space
+                    ScrollingLiveText(text: viewModel.liveText)
+                        .padding(.horizontal, 8)
+
                 case .transcribing:
                     HStack(spacing: 6) {
-                        ProgressView().scaleEffect(0.75).tint(.secondary)
+                        ProgressView()
+                            .scaleEffect(0.75)
+                            .tint(.white.opacity(0.6))
                         Text("Transcribing…")
                             .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.white.opacity(0.6))
                     }
                     Spacer()
 
                 case .copied:
                     Text("Copied! ⌘V to paste")
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(.primary)
-                    Spacer()
-
-                case .recording:
-                    if viewModel.liveText.isEmpty {
-                        SoundwaveBars(audioLevel: viewModel.audioLevel)
-                    } else {
-                        // Live transcription text scrolls in as words appear
-                        Text(viewModel.liveText)
-                            .font(.system(size: 12, weight: .regular))
-                            .foregroundColor(.primary)
-                            .lineLimit(2)
-                            .truncationMode(.head)
-                            .transition(.opacity)
-                    }
+                        .foregroundColor(.white)
                     Spacer()
 
                 case .hidden:
                     SoundwaveBars(audioLevel: 0)
+                        .frame(width: 36)
                     Spacer()
                 }
 
+                // Status dot
                 Circle()
                     .fill(dotColor)
                     .frame(width: 8, height: 8)
                     .padding(.trailing, 14)
+                    .padding(.leading, 6)
                     .opacity(viewModel.state == .hidden ? 0 : 1)
             }
         }
-        .frame(width: 280, height: 64)
-        .animation(.easeInOut(duration: 0.2), value: viewModel.liveText)
+        .frame(width: 320, height: 56)
     }
 
     private var iconName: String {
@@ -88,9 +89,9 @@ struct SoundwaveView: View {
 
     private var iconColor: Color {
         switch viewModel.state {
-        case .recording:    return .red
-        case .copied:       return .green
-        default:            return .secondary
+        case .recording: return .red
+        case .copied:    return .green
+        default:         return .white.opacity(0.55)
         }
     }
 
@@ -100,6 +101,34 @@ struct SoundwaveView: View {
         case .transcribing: return .orange
         case .copied:       return .green
         case .hidden:       return .clear
+        }
+    }
+}
+
+// MARK: - Scrolling live text
+
+/// Single-line text that auto-scrolls right as new words arrive,
+/// so the latest transcription is always visible.
+struct ScrollingLiveText: View {
+    let text: String
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                Text(text.isEmpty ? " " : text)
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundColor(.white.opacity(text.isEmpty ? 0 : 0.9))
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .id("end")
+            }
+            .disabled(true)   // prevent manual scrolling
+            .clipped()
+            .onChange(of: text) { _, _ in
+                withAnimation(.easeOut(duration: 0.3)) {
+                    proxy.scrollTo("end", anchor: .trailing)
+                }
+            }
         }
     }
 }
@@ -120,7 +149,7 @@ struct SoundwaveBars: View {
         HStack(alignment: .center, spacing: 3) {
             ForEach(0..<barCount, id: \.self) { i in
                 RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.accentColor.opacity(0.85))
+                    .fill(Color.white.opacity(0.75))
                     .frame(width: 3, height: heights[i])
                     .animation(.easeInOut(duration: 0.05), value: heights[i])
             }

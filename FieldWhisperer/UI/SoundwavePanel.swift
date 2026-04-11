@@ -12,7 +12,7 @@ final class SoundwavePanel: NSPanel {
         self.viewModel = viewModel
 
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 320, height: 64),
+            contentRect: NSRect(x: 0, y: 0, width: 320, height: 56),
             styleMask:   [.borderless, .nonactivatingPanel],
             backing:     .buffered,
             defer:       false
@@ -27,7 +27,7 @@ final class SoundwavePanel: NSPanel {
         alphaValue         = 0
 
         let content = NSHostingView(rootView: SoundwaveView(viewModel: viewModel))
-        content.frame = NSRect(x: 0, y: 0, width: 320, height: 64)
+        content.frame = NSRect(x: 0, y: 0, width: 320, height: 56)
         contentView = content
     }
 
@@ -92,7 +92,7 @@ final class SoundwavePanel: NSPanel {
         guard let screen = NSScreen.main else { return }
         let screenFrame  = screen.visibleFrame
         let panelWidth:  CGFloat = 320
-        let panelHeight: CGFloat = 64
+        let panelHeight: CGFloat = 56
         let x = screenFrame.midX - panelWidth / 2
         let y = screenFrame.maxY - panelHeight - 8
         setFrameOrigin(NSPoint(x: x, y: y))
