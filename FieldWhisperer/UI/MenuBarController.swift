@@ -159,7 +159,7 @@ final class MenuBarController: NSObject {
 
     private func updateButtonImage(recording: Bool) {
         guard let button = statusItem.button else { return }
-        let symbolName = recording ? "mic.fill" : "mic.fill"
+        let symbolName = "mic.fill"
         let image = NSImage(systemSymbolName: symbolName,
                             accessibilityDescription: "FieldWhisperer")
         image?.isTemplate = !recording

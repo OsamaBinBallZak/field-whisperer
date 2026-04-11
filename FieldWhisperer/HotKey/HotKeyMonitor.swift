@@ -13,8 +13,6 @@ final class HotKeyMonitor {
 
     private var hotKeyRef:    EventHotKeyRef?
     private var eventHandler: EventHandlerRef?
-    private var currentKeyCode:   UInt32 = 0
-    private var currentModifiers: UInt32 = 0
 
     init(onKeyDown: @escaping () async -> Void,
          onKeyUp:   @escaping () async -> Void) {
@@ -68,9 +66,6 @@ final class HotKeyMonitor {
     // MARK: - Private
 
     private func registerHotKey(keyCode: UInt32, modifiers: UInt32) {
-        currentKeyCode   = keyCode
-        currentModifiers = modifiers
-
         var hotKeyID = EventHotKeyID()
         hotKeyID.signature = fourCharCode("FWpt")
         hotKeyID.id        = 1

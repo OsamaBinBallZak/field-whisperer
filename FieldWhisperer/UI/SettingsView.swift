@@ -87,7 +87,7 @@ struct SettingsView: View {
             } header: {
                 Text("Options")
             } footer: {
-                Text("Filler words: removes \"um\", \"uh\", \"hmm\" and similar from transcriptions.\nCompletion sound: plays a soft chime when transcription finishes.")
+                Text("Removes \"um\", \"uh\", \"hmm\" and similar filler words from transcriptions.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }

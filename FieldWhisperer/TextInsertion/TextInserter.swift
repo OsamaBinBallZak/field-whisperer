@@ -69,8 +69,9 @@ final class TextInserter {
 
     // MARK: - Focus check
 
-    /// Returns true if the system-wide focused element appears to be a text input
-    /// (has a kAXValue attribute). Prevents Cmd+V from firing into Finder/desktop.
+    /// Returns true if the system-wide focused element is a text-editing context.
+    /// Prevents Cmd+V from firing into Finder/desktop (which triggers a pop sound).
+    /// Three-layer check covers: native apps, Electron apps (Slack, Claude), and empty fields.
     private func hasFocusedTextElement() -> Bool {
         let sys = AXUIElementCreateSystemWide()
         var raw: CFTypeRef?
@@ -78,8 +79,24 @@ final class TextInserter {
             sys, kAXFocusedUIElementAttribute as CFString, &raw
         ) == .success, let raw else { return false }
         let elem = raw as! AXUIElement
-        var value: CFTypeRef?
-        return AXUIElementCopyAttributeValue(elem, kAXValueAttribute as CFString, &value) == .success
+
+        var dummy: CFTypeRef?
+        // kAXValueAttribute — native text fields (Notes, TextEdit, Xcode, Terminal)
+        if AXUIElementCopyAttributeValue(elem, kAXValueAttribute as CFString, &dummy) == .success {
+            return true
+        }
+        // "AXSelectedTextRange" — Electron/browser apps (Slack, Claude) expose this when
+        // a contenteditable or input element is focused inside the Chromium web layer
+        if AXUIElementCopyAttributeValue(elem, "AXSelectedTextRange" as CFString, &dummy) == .success {
+            return true
+        }
+        // Role-based fallback: empty native fields may not expose kAXValueAttribute
+        if AXUIElementCopyAttributeValue(elem, kAXRoleAttribute as CFString, &dummy) == .success,
+           let role = dummy as? String,
+           ["AXTextField", "AXTextArea", "AXComboBox"].contains(role) {
+            return true
+        }
+        return false
     }
 
     // MARK: - Cmd+V simulation
