@@ -10,7 +10,7 @@ Hold **⌥Space** (Option+Space) to record, release to transcribe — the text i
 - **⌥Space push-to-talk** — global hotkey works in any app, any window; no Input Monitoring required
 - **Auto-paste** — transcribed text is inserted directly at the cursor in native apps (via Accessibility), and automatically pasted via Cmd+V in Electron apps (Slack, Claude, browsers); text is always on clipboard as a fallback
 - **Floating soundwave** — animated panel at the top-centre of your screen shows recording state, live transcription preview, and completion feedback
-- **Menu bar icon** — mic lives in the Apple menu bar; no Dock icon
+- **Menu bar + Dock** — lives in the Apple menu bar and the Dock; clicking the Dock icon opens Settings
 - **Remove filler words** — optional filter strips "um", "uh", "hmm" and similar from transcriptions
 - **Powered by Whisper** — local, on-device transcription via [WhisperKit](https://github.com/argmaxinc/WhisperKit) (no API keys, no cloud)
 - **Model selector** — switch between Tiny / Base / Small / Medium from Settings
@@ -40,7 +40,7 @@ open FieldWhisperer.xcodeproj
 2. Go to **Signing & Capabilities → Team** and pick your Apple Developer team.
 3. Press **⌘R** to build and run.
 
-The app appears only in the menu bar (no Dock icon).
+The app appears in the menu bar and the Dock.
 
 ### Permissions
 
@@ -72,18 +72,19 @@ On first run the app downloads the Whisper model (~140 MB for the default *Small
 
 ## Running without Xcode
 
-You only need Xcode once to build the app. After that, it runs independently.
+You only need Xcode once to build the app. After that it runs independently.
 
-1. In Xcode: **Product → Archive**
-2. When the Organizer opens, click **Distribute App → Copy App**
-3. Move **FieldWhisperer.app** to `/Applications`
-4. Re-add it in **System Settings → Privacy & Security → Accessibility** (remove old entry, add new one — the path changed)
-5. Launch from Spotlight or `/Applications` — Xcode never needs to be open again
+1. In Xcode press **⌘B** to build
+2. In the menu bar: **Product → Show Build Folder in Finder**
+3. Open **Products → Debug** — you'll see **FieldWhisperer.app**
+4. Drag it to `/Applications`
+5. Open **System Settings → Privacy & Security → Accessibility** — remove the old FieldWhisperer entry, click **+** and add the one from `/Applications`
+6. Launch from Spotlight (⌘Space → "Field") — Xcode never needs to be open again
 
-Alternatively, grab the `.app` from DerivedData after a regular build:
-```
-~/Library/Developer/Xcode/DerivedData/FieldWhisperer-*/Build/Products/Debug/FieldWhisperer.app
-```
+> Or open the Debug folder directly from Terminal:
+> ```bash
+> open ~/Library/Developer/Xcode/DerivedData/FieldWhisperer-*/Build/Products/Debug/
+> ```
 
 ---
 
@@ -123,6 +124,16 @@ AppDelegate (state machine: idle → recording → transcribing → idle)
 ---
 
 ## Distribution
+
+### Share with a friend (right now, no cost)
+
+The quickest way to share — no developer account or Xcode required on their end:
+
+1. Right-click **FieldWhisperer.app** in `/Applications` → **Compress**
+2. Send the `.zip` via **AirDrop**, email, or Google Drive
+3. Friend unzips and drags to their `/Applications`
+4. Friend **right-clicks → Open** to bypass the Gatekeeper "unidentified developer" warning (only needed once)
+5. They grant **Microphone** and **Accessibility** permissions on first run — done
 
 ### App Store — not viable
 
