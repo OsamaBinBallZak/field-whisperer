@@ -159,6 +159,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         print("[FieldWhisperer] Hotkey changed to \(option.label)")
     }
 
+    // MARK: - Dock icon
+
+    /// Clicking the Dock icon when no window is open shows Settings.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag { menuBarControllerDidRequestSettings(menuBarController) }
+        return true
+    }
+
     // MARK: - Permissions
 
     @discardableResult
