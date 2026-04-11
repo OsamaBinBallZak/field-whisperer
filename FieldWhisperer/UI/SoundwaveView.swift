@@ -78,16 +78,17 @@ struct SoundwaveView: View {
 
             // Inner animated pill — 320×56
             ZStack {
-                // Frosted glass background: material blur + dark tint + hairline rim
+                // Frosted glass background: strong blur base, very light dark tint,
+                // and a white rim so the edge reads as glass rather than grey fog.
                 Capsule()
-                    .fill(.ultraThinMaterial)
+                    .fill(.regularMaterial)
                     .overlay(
                         Capsule()
-                            .fill(Color(red: 0.02, green: 0.02, blue: 0.08).opacity(0.55))
+                            .fill(Color(red: 0.04, green: 0.04, blue: 0.10).opacity(0.18))
                     )
                     .overlay(
                         Capsule()
-                            .strokeBorder(Color.white.opacity(0.10), lineWidth: 0.5)
+                            .strokeBorder(Color.white.opacity(0.18), lineWidth: 0.75)
                     )
 
                 HStack(spacing: 0) {
