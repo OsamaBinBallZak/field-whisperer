@@ -76,11 +76,16 @@ final class SoundwavePanel: NSPanel {
 
         viewModel.state    = .copied
         viewModel.liveText = ""
-        if let url = Bundle.main.url(forResource: "field-whisperer-send-sound", withExtension: "wav"),
-           let player = try? AVAudioPlayer(contentsOf: url) {
-            player.volume = 0.5
-            player.play()
-            completionPlayer = player   // retain until playback finishes
+        if let url = Bundle.main.url(forResource: "field-whisperer-send-sound", withExtension: "wav") {
+            if let player = try? AVAudioPlayer(contentsOf: url) {
+                player.volume = 1.0
+                player.play()
+                completionPlayer = player   // retain until playback finishes
+            } else {
+                print("[FieldWhisperer] ⚠️ AVAudioPlayer init failed for completion sound")
+            }
+        } else {
+            print("[FieldWhisperer] ⚠️ completion sound not found in bundle")
         }
         // Panel is already visible — just update state then auto-hide after a beat
         let item = DispatchWorkItem { [weak self] in self?.hide() }

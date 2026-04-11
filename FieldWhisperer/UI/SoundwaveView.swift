@@ -84,12 +84,20 @@ struct SoundwaveView: View {
                     .shadow(color: .black.opacity(0.5), radius: 18, y: 7)
 
                 HStack(spacing: 0) {
-                    // Mic / checkmark icon — always white, dot carries state colour
-                    Image(systemName: iconName)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(iconColor)
-                        .padding(.leading, 16)
-                        .padding(.trailing, 10)
+                    // Mic / checkmark icon — faint blue bloom behind it during recording
+                    ZStack {
+                        if viewModel.state == .recording {
+                            Circle()
+                                .fill(Color(red: 0.25, green: 0.55, blue: 1.0).opacity(0.18))
+                                .frame(width: 28, height: 28)
+                                .blur(radius: 5)
+                        }
+                        Image(systemName: iconName)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(iconColor)
+                    }
+                    .padding(.leading, 16)
+                    .padding(.trailing, 10)
 
                     switch viewModel.state {
                     case .recording:
@@ -166,7 +174,8 @@ struct SoundwaveView: View {
 
 // MARK: - Animated status dot
 
-/// A status dot with a radial-gradient core and a soft breathing halo when active.
+/// Three-layer LED-style dot: dark housing/bezel, offset-specular lit core,
+/// and a soft bloom that bleeds outward during recording.
 struct AnimatedDot: View {
     let color: Color
     let animate: Bool
@@ -175,31 +184,50 @@ struct AnimatedDot: View {
 
     var body: some View {
         ZStack {
-            // Outer breathing halo
+            // Layer 1: outer bloom — blurred glow bleeding outside the housing
             Circle()
-                .fill(color.opacity(pulse ? 0.28 : 0.0))
-                .frame(width: 18, height: 18)
-            // Core — radial gradient from bright centre to softer edge
+                .fill(color)
+                .frame(width: 22, height: 22)
+                .blur(radius: 5)
+                .opacity(animate ? (pulse ? 0.50 : 0.08) : 0)
+
+            // Layer 2: dark housing/bezel ring
+            Circle()
+                .fill(Color(white: 0.10))
+                .frame(width: 14, height: 14)
+                .overlay(Circle().strokeBorder(Color(white: 0.25), lineWidth: 0.5))
+
+            // Layer 3: inner lit core — off-centre radial gradient creates a
+            // top-left specular highlight matching the reference LED image
             Circle()
                 .fill(
                     RadialGradient(
-                        colors: [color, color.opacity(0.55)],
-                        center: .center,
+                        colors: [.white, color, color.opacity(0.35)],
+                        center: UnitPoint(x: 0.35, y: 0.28),
                         startRadius: 0,
-                        endRadius: 4
+                        endRadius: 5
                     )
                 )
-                .frame(width: 8, height: 8)
-                .scaleEffect(pulse && animate ? 1.12 : 1.0)
+                .frame(width: 9, height: 9)
+                .opacity(animate ? (pulse ? 1.0 : 0.45) : 0.20)
+                .scaleEffect(animate ? (pulse ? 1.0 : 0.82) : 0.65)
         }
-        .animation(
-            animate
-                ? .easeInOut(duration: 1.3).repeatForever(autoreverses: true)
-                : .easeOut(duration: 0.2),
-            value: pulse
-        )
-        .onAppear        { pulse = animate }
-        .onChange(of: animate) { _, v in pulse = v }
+        .frame(width: 22, height: 22)
+        .onAppear {
+            guard animate else { return }
+            withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
+                pulse = true
+            }
+        }
+        .onChange(of: animate) { _, v in
+            if v {
+                withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
+                    pulse = true
+                }
+            } else {
+                withAnimation(.easeOut(duration: 0.3)) { pulse = false }
+            }
+        }
     }
 }
 
