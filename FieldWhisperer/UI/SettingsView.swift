@@ -4,7 +4,10 @@ import AVFoundation
 
 struct SettingsView: View {
     @ObservedObject var transcriptionEngine: TranscriptionEngine
-    @State private var selectedModel: String = ModelManager.selectedModel
+    var appDelegate: AppDelegate
+
+    @State private var selectedModel:    String = ModelManager.selectedModel
+    @State private var selectedHotkeyID: String = ModelManager.selectedHotkeyID
     @State private var axGranted        = false
     @State private var micGranted       = false
     @State private var micNotDetermined = false
@@ -52,6 +55,26 @@ struct SettingsView: View {
                     .foregroundColor(.secondary)
             }
 
+            // MARK: Hotkey picker
+            Section {
+                Picker("Shortcut", selection: $selectedHotkeyID) {
+                    ForEach(ModelManager.availableHotkeys) { option in
+                        Text(option.label).tag(option.id)
+                    }
+                }
+                .pickerStyle(.radioGroup)
+                .onChange(of: selectedHotkeyID) { _, newValue in
+                    guard let option = ModelManager.availableHotkeys.first(where: { $0.id == newValue }) else { return }
+                    appDelegate.updateHotkey(option)
+                }
+            } header: {
+                Text("Recording Shortcut")
+            } footer: {
+                Text("Hold the shortcut to record, release to transcribe and paste.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
             // MARK: Permissions
             Section {
                 // Accessibility
@@ -89,7 +112,7 @@ struct SettingsView: View {
                     Spacer()
                     Text("v1.0").foregroundColor(.secondary)
                 }
-                Text("Hold ⌥Space (Option+Space) to record, release to transcribe and paste into any text field.")
+                Text("Hold \(ModelManager.availableHotkeys.first(where: { $0.id == selectedHotkeyID })?.label ?? "⌥Space") to record, release to transcribe and paste into any text field.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }

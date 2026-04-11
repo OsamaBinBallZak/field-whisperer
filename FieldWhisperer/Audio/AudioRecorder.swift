@@ -62,6 +62,9 @@ final class AudioRecorder {
         return captured
     }
 
+    /// Non-destructive snapshot of samples captured so far (for live transcription).
+    var currentSamples: [Float] { samples }
+
     // MARK: - Private
 
     private func tearDown() {

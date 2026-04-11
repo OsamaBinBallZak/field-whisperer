@@ -12,22 +12,22 @@ final class SoundwavePanel: NSPanel {
         self.viewModel = viewModel
 
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 280, height: 64),
+            contentRect: NSRect(x: 0, y: 0, width: 320, height: 64),
             styleMask:   [.borderless, .nonactivatingPanel],
             backing:     .buffered,
             defer:       false
         )
 
-        level             = .floating
-        backgroundColor   = .clear
-        isOpaque          = false
-        hasShadow         = false          // shadow is drawn by SwiftUI material
+        level              = .floating
+        backgroundColor    = .clear
+        isOpaque           = false
+        hasShadow          = false
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         isMovableByWindowBackground = false
-        alphaValue        = 0
+        alphaValue         = 0
 
         let content = NSHostingView(rootView: SoundwaveView(viewModel: viewModel))
-        content.frame = NSRect(x: 0, y: 0, width: 280, height: 64)
+        content.frame = NSRect(x: 0, y: 0, width: 320, height: 64)
         contentView = content
     }
 
@@ -35,7 +35,8 @@ final class SoundwavePanel: NSPanel {
 
     func show() {
         positionAtTopCenter()
-        viewModel.state = .recording
+        viewModel.state    = .recording
+        viewModel.liveText = ""
         if !isVisible { orderFront(nil) }
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.2
@@ -44,19 +45,19 @@ final class SoundwavePanel: NSPanel {
     }
 
     func showTranscribing() {
-        viewModel.state = .transcribing
+        viewModel.state    = .transcribing
+        viewModel.liveText = ""
     }
 
-    /// Show "Copied! ⌘V to paste" then auto-hide after a brief delay.
     func showCopied() {
-        viewModel.state = .copied
+        viewModel.state    = .copied
+        viewModel.liveText = ""
         positionAtTopCenter()
         if !isVisible { orderFront(nil) }
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.2
             self.animator().alphaValue = 1.0
         }
-        // Auto-hide after 2 seconds
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
             self?.hide()
         }
@@ -66,15 +67,20 @@ final class SoundwavePanel: NSPanel {
         viewModel.audioLevel = Double(level)
     }
 
+    /// Update the live transcription text shown while recording.
+    func updateLiveText(_ text: String) {
+        viewModel.liveText = text
+    }
+
     func hide() {
         NSAnimationContext.runAnimationGroup({ ctx in
             ctx.duration = 0.3
             self.animator().alphaValue = 0
         }, completionHandler: {
             self.orderOut(nil)
-            // NSAnimationContext completion handlers always fire on the main thread.
             MainActor.assumeIsolated {
-                self.viewModel.state = .hidden
+                self.viewModel.state    = .hidden
+                self.viewModel.liveText = ""
                 self.viewModel.audioLevel = 0
             }
         })
@@ -85,11 +91,11 @@ final class SoundwavePanel: NSPanel {
     private func positionAtTopCenter() {
         guard let screen = NSScreen.main else { return }
         let screenFrame  = screen.visibleFrame
-        let panelWidth:  CGFloat = 280
+        let panelWidth:  CGFloat = 320
         let panelHeight: CGFloat = 64
-        // Place just below the macOS menu bar (visibleFrame already excludes it)
-        let x = screenFrame.midX - panelWidth  / 2
+        let x = screenFrame.midX - panelWidth / 2
         let y = screenFrame.maxY - panelHeight - 8
         setFrameOrigin(NSPoint(x: x, y: y))
+        setContentSize(NSSize(width: panelWidth, height: panelHeight))
     }
 }

@@ -15,22 +15,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private enum AppState { case idle, recording, transcribing }
     private var state: AppState = .idle
 
+    // Live transcription: runs WhisperKit on the growing buffer every N seconds
+    private var liveTranscriptionTask: Task<Void, Never>?
+    private let liveTranscriptionInterval: TimeInterval = 3.0
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         print("[FieldWhisperer] App launched.")
 
-        // Prompt for Accessibility permission immediately on first launch
         let axTrusted = requestAccessibilityPermission()
         print("[FieldWhisperer] AXIsProcessTrusted = \(axTrusted)")
-        if !axTrusted {
-            print("[FieldWhisperer] ⚠️ Accessibility not trusted. " +
-                  "Text insertion will use pasteboard fallback (Cmd+V). " +
-                  "Grant in System Settings → Accessibility, then toggle OFF/ON and restart.")
-        }
 
-        // Initialize subsystems
         transcriptionEngine = TranscriptionEngine()
-        audioRecorder = AudioRecorder()
-        textInserter = TextInserter()
+        audioRecorder       = AudioRecorder()
+        textInserter        = TextInserter()
 
         let soundwaveViewModel = SoundwaveViewModel()
         soundwavePanel = SoundwavePanel(viewModel: soundwaveViewModel)
@@ -40,49 +37,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             delegate: self
         )
 
-        // Load Whisper model in the background; menu bar reflects loading state
         Task {
             await transcriptionEngine.loadModel(variant: ModelManager.selectedModel)
             menuBarController.rebuildMenu()
         }
 
-        // Start monitoring for the FN key globally
+        let hotkey = ModelManager.selectedHotkey
         hotKeyMonitor = HotKeyMonitor(
-            onFNDown: { [weak self] in await self?.beginRecording() },
-            onFNUp:   { [weak self] in await self?.endRecording()   }
+            onKeyDown: { [weak self] in await self?.beginRecording() },
+            onKeyUp:   { [weak self] in await self?.endRecording()   }
         )
-        hotKeyMonitor.start()
+        hotKeyMonitor.start(keyCode: hotkey.keyCode, modifiers: hotkey.modifiers)
     }
 
     // MARK: - Recording state machine
 
     private func beginRecording() async {
-        guard state == .idle else {
-            print("[FieldWhisperer] beginRecording: ignored — state is \(state), not idle")
-            return
-        }
+        guard state == .idle else { return }
         guard transcriptionEngine.isReady else {
-            print("[FieldWhisperer] beginRecording: model not ready — \(transcriptionEngine.statusText)")
+            print("[FieldWhisperer] Model not ready: \(transcriptionEngine.statusText)")
             menuBarController.flashNotReady()
             return
         }
-        print("[FieldWhisperer] beginRecording: starting…")
+        print("[FieldWhisperer] Recording started")
         state = .recording
         soundwavePanel.show()
         menuBarController.setRecordingIndicator(active: true)
         audioRecorder.start { [weak self] level in
             self?.soundwavePanel.updateLevel(level)
         }
+        startLiveTranscription()
     }
 
     private func endRecording() async {
-        guard state == .recording else {
-            print("[FieldWhisperer] endRecording: ignored — state is \(state), not recording")
-            return
-        }
+        guard state == .recording else { return }
+        stopLiveTranscription()
+
         state = .transcribing
         let samples = audioRecorder.stop()
-        print("[FieldWhisperer] endRecording: captured \(samples.count) samples")
+        print("[FieldWhisperer] Captured \(samples.count) samples (~\(String(format: "%.1f", Double(samples.count)/16000))s)")
         soundwavePanel.showTranscribing()
         menuBarController.setRecordingIndicator(active: false)
 
@@ -90,32 +83,69 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         do {
             let text = try await transcriptionEngine.transcribe(audioSamples: samples)
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.isEmpty {
-                print("[FieldWhisperer] Transcription returned empty text — nothing to insert.")
-            } else {
-                textToInsert = trimmed
-            }
+            textToInsert = trimmed.isEmpty ? nil : trimmed
         } catch {
             print("[FieldWhisperer] ❌ Transcription error: \(error.localizedDescription)")
         }
 
-        if let text = textToInsert {
-            print("[FieldWhisperer] Inserting text: \"\(text.prefix(80))\"")
-            let result = textInserter.insert(text: text)
-
-            switch result {
-            case .accessibilityInserted:
-                // Text was inserted directly — hide panel normally
-                soundwavePanel.hide()
-            case .copiedToClipboard:
-                // Text is on clipboard — show "Copied!" feedback, auto-hides after 2s
-                soundwavePanel.showCopied()
-            }
-        } else {
+        guard let text = textToInsert else {
             soundwavePanel.hide()
+            state = .idle
+            return
+        }
+
+        print("[FieldWhisperer] Inserting: \"\(text.prefix(80))\"")
+
+        // Hide panel, wait for target app to regain focus, then insert
+        soundwavePanel.hide()
+        try? await Task.sleep(for: .milliseconds(350))
+
+        let result = textInserter.insert(text: text)
+        switch result {
+        case .accessibilityInserted, .pastedViaKeyboard:
+            break   // text landed in the field — no extra feedback needed
+        case .copiedToClipboard:
+            soundwavePanel.showCopied()
         }
 
         state = .idle
+    }
+
+    // MARK: - Live transcription
+
+    private func startLiveTranscription() {
+        liveTranscriptionTask = Task { [weak self] in
+            guard let self else { return }
+            // Wait a beat before the first pass so there's audio to transcribe
+            try? await Task.sleep(for: .seconds(liveTranscriptionInterval))
+
+            while !Task.isCancelled, self.state == .recording {
+                let snapshot = self.audioRecorder.currentSamples
+                // Need at least 1s of audio before attempting live transcription
+                if snapshot.count > 16_000 {
+                    if let text = try? await self.transcriptionEngine.transcribe(audioSamples: snapshot) {
+                        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !trimmed.isEmpty {
+                            self.soundwavePanel.updateLiveText(trimmed)
+                        }
+                    }
+                }
+                try? await Task.sleep(for: .seconds(self.liveTranscriptionInterval))
+            }
+        }
+    }
+
+    private func stopLiveTranscription() {
+        liveTranscriptionTask?.cancel()
+        liveTranscriptionTask = nil
+    }
+
+    // MARK: - Hotkey update (called from SettingsView)
+
+    func updateHotkey(_ option: ModelManager.HotkeyOption) {
+        ModelManager.selectedHotkeyID = option.id
+        hotKeyMonitor.updateHotkey(keyCode: option.keyCode, modifiers: option.modifiers)
+        print("[FieldWhisperer] Hotkey changed to \(option.label)")
     }
 
     // MARK: - Permissions
@@ -132,7 +162,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 extension AppDelegate: MenuBarControllerDelegate {
     func menuBarControllerDidRequestSettings(_ controller: MenuBarController) {
         if settingsWindowController == nil {
-            settingsWindowController = SettingsWindowController(transcriptionEngine: transcriptionEngine)
+            settingsWindowController = SettingsWindowController(
+                transcriptionEngine: transcriptionEngine,
+                appDelegate: self
+            )
             settingsWindowController?.window?.delegate = self
         }
         settingsWindowController?.showWindow(nil)
