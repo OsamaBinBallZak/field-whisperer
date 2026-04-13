@@ -38,7 +38,14 @@ fi
 echo "▶ Generating background image..."
 python3 "${PROJECT_ROOT}/Distribution/generate-background.py"
 
-# ── 5. Build DMG ─────────────────────────────────────────────────────────────
+# ── 5. Eject any stale FieldWhisperer volume from a previous run ──────────────
+for vol in "/Volumes/${APP_NAME}" "/Volumes/${APP_NAME} 1" "/Volumes/${APP_NAME} 2"; do
+  [ -d "$vol" ] && hdiutil detach "$vol" -force 2>/dev/null || true
+done
+# Clean up any leftover temp UDRW from a previous crash
+rm -f /tmp/dmgbuild-*.dmg /tmp/FW-*.dmg
+
+# ── 6. Build DMG ─────────────────────────────────────────────────────────────
 echo "▶ Building DMG..."
 rm -f "${OUT_DMG}"
 python3 -m dmgbuild \
