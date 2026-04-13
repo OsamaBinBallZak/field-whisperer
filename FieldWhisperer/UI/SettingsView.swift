@@ -153,6 +153,19 @@ struct SettingsView: View {
                 Text(aboutShortcutHint)
                     .font(.caption)
                     .foregroundColor(.secondary)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("( ᴗ ͜ʖ ᴗ)  psst… this app was handcrafted")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(.secondary)
+                    Text("        by a human named Hendri.")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(.secondary)
+                    Text("        yes, a real one. probably.")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(.tertiary)
+                }
+                .padding(.top, 2)
             }
         }
         .formStyle(.grouped)
