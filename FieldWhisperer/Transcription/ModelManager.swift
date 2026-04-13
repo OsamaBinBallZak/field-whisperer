@@ -55,6 +55,23 @@ enum ModelManager {
         availableHotkeys.first(where: { $0.id == selectedHotkeyID }) ?? availableHotkeys[0]
     }
 
+    // MARK: - Activation mode
+
+    enum ActivationMode: String {
+        case pushToTalk   // hold hotkey to record, release to transcribe
+        case toggle       // tap to start, tap again to stop & transcribe
+    }
+
+    private static let activationModeKey = "activationMode"
+
+    static var activationMode: ActivationMode {
+        get {
+            ActivationMode(rawValue: UserDefaults.standard.string(forKey: activationModeKey) ?? "")
+                ?? .pushToTalk
+        }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: activationModeKey) }
+    }
+
     // MARK: - Feature flags
 
     /// Default true — strip um/uh/hmm/er and parenthetical fillers before pasting.

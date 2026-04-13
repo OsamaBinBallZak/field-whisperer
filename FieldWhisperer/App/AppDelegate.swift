@@ -15,10 +15,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private enum AppState { case idle, recording, transcribing }
     private var state: AppState = .idle
 
-    /// PID of the app that was frontmost when recording began — captured before
-    /// the floating panel appears so Cmd+V can be targeted precisely at that process.
-    private var insertionTargetPid: pid_t? = nil
-
     // Live transcription: runs WhisperKit on the growing buffer every N seconds
     private var liveTranscriptionTask: Task<Void, Never>?
     private let liveTranscriptionInterval: TimeInterval = 3.0
@@ -48,8 +44,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let hotkey = ModelManager.selectedHotkey
         hotKeyMonitor = HotKeyMonitor(
-            onKeyDown: { [weak self] in await self?.beginRecording() },
-            onKeyUp:   { [weak self] in await self?.endRecording()   }
+            onKeyDown: { [weak self] in
+                guard let self else { return }
+                switch ModelManager.activationMode {
+                case .pushToTalk: await self.beginRecording()
+                case .toggle:     await self.toggleRecording()
+                }
+            },
+            onKeyUp: { [weak self] in
+                guard let self else { return }
+                // Toggle mode ignores keyUp — stop is driven by the next keyDown.
+                if ModelManager.activationMode == .pushToTalk {
+                    await self.endRecording()
+                }
+            }
         )
         hotKeyMonitor.start(keyCode: hotkey.keyCode, modifiers: hotkey.modifiers)
     }
@@ -65,14 +73,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         print("[FieldWhisperer] Recording started")
         state = .recording
-        // Capture before the panel appears — frontmostApplication is accurate here
-        insertionTargetPid = NSWorkspace.shared.frontmostApplication?.processIdentifier
         soundwavePanel.show()
         menuBarController.setRecordingIndicator(active: true)
-        audioRecorder.start { [weak self] level in
-            self?.soundwavePanel.updateLevel(level)
-        }
+        audioRecorder.start(
+            levelCallback: { [weak self] level in
+                self?.soundwavePanel.updateLevel(level)
+            },
+            onError: { [weak self] message in
+                self?.handleAudioError(message)
+            }
+        )
         startLiveTranscription()
+    }
+
+    /// Toggle activation: tap once to start recording, tap again to stop & paste.
+    private func toggleRecording() async {
+        switch state {
+        case .idle:         await beginRecording()
+        case .recording:    await endRecording()
+        case .transcribing: break  // ignore hotkey while we're transcribing
+        }
+    }
+
+    /// Called from AudioRecorder when setup fails (no mic, permission denied, etc.)
+    /// Abort the current recording attempt cleanly and surface the error in the pill.
+    private func handleAudioError(_ message: String) {
+        print("[FieldWhisperer] Audio error: \(message)")
+        stopLiveTranscription()
+        _ = audioRecorder.stop()
+        menuBarController.setRecordingIndicator(active: false)
+        soundwavePanel.showError(message)
+        state = .idle
     }
 
     private func endRecording() async {
@@ -113,11 +144,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Small delay lets any focus changes settle before the insert.
         try? await Task.sleep(for: .milliseconds(150))
 
+        // Capture the target PID NOW (not at record-start) so the paste goes
+        // to whatever field the user has most recently focused — letting them
+        // start recording in Slack and finish by pasting into Notes.
+        let targetPid = NSWorkspace.shared.frontmostApplication?.processIdentifier
+
         // Fire sound and paste simultaneously — player is pre-buffered so
         // showCopied() plays instantly, and postToPid is near-instantaneous.
         soundwavePanel.showCopied()
-        let _ = textInserter.insert(text: text, targetPid: insertionTargetPid)
-        insertionTargetPid = nil
+        let _ = textInserter.insert(text: text, targetPid: targetPid)
 
         state = .idle
     }

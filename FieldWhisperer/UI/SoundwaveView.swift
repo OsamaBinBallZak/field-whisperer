@@ -2,11 +2,12 @@ import SwiftUI
 
 // MARK: - View model
 
-enum RecordingUIState {
+enum RecordingUIState: Equatable {
     case hidden
     case recording
     case transcribing
     case copied
+    case error(String)
 }
 
 @MainActor
@@ -115,6 +116,13 @@ struct SoundwaveView: View {
                             .foregroundColor(.white)
                         Spacer()
 
+                    case .error(let message):
+                        Text(message)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(Color(red: 1.0, green: 0.45, blue: 0.45))
+                            .lineLimit(1)
+                        Spacer()
+
                     case .hidden:
                         SoundwaveBars(audioLevel: 0)
                             .frame(width: 36)
@@ -149,6 +157,7 @@ struct SoundwaveView: View {
     private var iconName: String {
         switch viewModel.state {
         case .copied: return "checkmark.circle.fill"
+        case .error:  return "exclamationmark.triangle.fill"
         default:      return "mic.fill"
         }
     }
@@ -156,6 +165,7 @@ struct SoundwaveView: View {
     private var iconColor: Color {
         switch viewModel.state {
         case .copied: return .green
+        case .error:  return Color(red: 1.0, green: 0.45, blue: 0.45)
         default:      return .white.opacity(0.55)
         }
     }
@@ -165,6 +175,7 @@ struct SoundwaveView: View {
         case .recording:    return Color(red: 0.25, green: 0.55, blue: 1.0)
         case .transcribing: return .orange
         case .copied:       return .green
+        case .error:        return Color(red: 1.0, green: 0.45, blue: 0.45)
         case .hidden:       return .clear
         }
     }
