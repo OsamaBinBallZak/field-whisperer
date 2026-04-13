@@ -28,23 +28,17 @@ fi
 echo "▶ Ad-hoc signing for distribution..."
 codesign --force --deep --sign - "${BUILD_APP}"
 
-# ── 3. Generate background ────────────────────────────────────────────────────
-echo "▶ Generating background image..."
-python3 "${PROJECT_ROOT}/Distribution/generate-background.py"
-
-# ── 4. Stage DMG contents ─────────────────────────────────────────────────────
+# ── 3. Stage DMG contents ─────────────────────────────────────────────────────
 echo "▶ Staging DMG contents..."
 rm -rf "${DMG_DIR}"
 mkdir -p "${DMG_DIR}"
 cp -R "${BUILD_APP}" "${DMG_DIR}/"
 ln -s /Applications "${DMG_DIR}/Applications"
-mkdir -p "${DMG_DIR}/.background"
-cp "${PROJECT_ROOT}/Distribution/dmg-background.png" "${DMG_DIR}/.background/background.png"
 
-# ── 5. Write icon positions into staging DS_Store ─────────────────────────────
+# ── 4. Write icon positions into staging DS_Store ─────────────────────────────
 python3 "${PROJECT_ROOT}/Distribution/set-dmg-layout.py" "${DMG_DIR}"
 
-# ── 6. Create compressed DMG in one shot ──────────────────────────────────────
+# ── 5. Create compressed DMG in one shot ──────────────────────────────────────
 # Single hdiutil create call — no intermediate UDRW, no attach, no convert.
 # Avoids the hdiutil convert EAGAIN issue on macOS 26 Tahoe.
 echo "▶ Creating DMG..."
