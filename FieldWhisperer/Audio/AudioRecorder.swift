@@ -10,10 +10,12 @@ import AVFoundation
 /// callback fires, startEngine() is never called, preventing double-tap crashes.
 final class AudioRecorder {
 
-    private let engine = AVAudioEngine()
+    private var engine = AVAudioEngine()
     private var samples: [Float] = []
     private var levelCallback: ((Float) -> Void)?
+    private var errorCallback: ((String) -> Void)?
     private var tapInstalled = false
+    private var configChangeObserver: NSObjectProtocol?
 
     // WhisperKit requires 16 kHz mono Float32
     private let targetSampleRate: Double = 16_000
@@ -26,24 +28,48 @@ final class AudioRecorder {
             channels: 1,
             interleaved: false
         )!
+
+        // React to route changes (AirPods connect/disconnect, default input switches).
+        // When the engine's config changes mid-session, reinstall the tap against the
+        // new input format instead of failing silently.
+        configChangeObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleConfigurationChange()
+        }
+    }
+
+    deinit {
+        if let obs = configChangeObserver {
+            NotificationCenter.default.removeObserver(obs)
+        }
     }
 
     // MARK: - Public API
 
     /// Start recording. `levelCallback` is called on the main thread with
     /// a 0–1 amplitude suitable for driving the soundwave animation.
-    func start(levelCallback: @escaping (Float) -> Void) {
+    /// `onError` is invoked on the main thread when audio setup fails
+    /// (e.g. no microphone detected).
+    func start(levelCallback: @escaping (Float) -> Void,
+               onError: ((String) -> Void)? = nil) {
         // Clean up any previous session that didn't shut down fully
         // (guards against the race condition where the permission callback
         // fired after a previous stop(), leaving the engine running)
         tearDown()
 
         self.levelCallback = levelCallback
+        self.errorCallback = onError
         samples.removeAll(keepingCapacity: true)
 
         AVCaptureDevice.requestAccess(for: .audio) { [weak self] granted in
             guard granted else {
                 print("[FieldWhisperer] Microphone permission denied.")
+                DispatchQueue.main.async {
+                    self?.errorCallback?("Microphone permission denied")
+                }
                 return
             }
             DispatchQueue.main.async {
@@ -71,13 +97,14 @@ final class AudioRecorder {
         // Setting levelCallback = nil before removeTap / stop acts as a
         // cancellation flag for any in-flight permission callbacks.
         levelCallback = nil
+        errorCallback = nil
         if tapInstalled {
             engine.inputNode.removeTap(onBus: 0)
             tapInstalled = false
         }
-        if engine.isRunning {
-            engine.stop()
-        }
+        if engine.isRunning { engine.stop() }
+        engine.reset()
+        engine = AVAudioEngine()  // new instance fully releases the CoreAudio device
         samples.removeAll(keepingCapacity: true)
     }
 
@@ -88,8 +115,18 @@ final class AudioRecorder {
         let inputNode   = engine.inputNode
         let inputFormat = inputNode.outputFormat(forBus: 0)
 
+        // No input device (e.g. Mac mini with no built-in mic and nothing connected)
+        // returns a zero-channel / zero-rate format. `installTap` with this format
+        // throws an Obj-C exception that crashes the app — bail out cleanly instead.
+        guard inputFormat.sampleRate > 0, inputFormat.channelCount > 0 else {
+            print("[FieldWhisperer] ❌ No microphone detected (sampleRate=\(inputFormat.sampleRate), channels=\(inputFormat.channelCount))")
+            errorCallback?("No microphone detected")
+            return
+        }
+
         guard let converter = AVAudioConverter(from: inputFormat, to: targetFormat) else {
             print("[FieldWhisperer] Could not create AVAudioConverter.")
+            errorCallback?("Audio converter unavailable")
             return
         }
 
@@ -127,11 +164,44 @@ final class AudioRecorder {
             }
         }
 
+        // Pre-warm the route so CoreAudio wakes the (possibly Bluetooth) input
+        // device before we call start(). Helps the "first AirPods record does
+        // nothing" glitch.
+        engine.prepare()
+
         do {
             try engine.start()
         } catch {
             tapInstalled = false
             print("[FieldWhisperer] AVAudioEngine start failed: \(error.localizedDescription)")
+            errorCallback?("Couldn't start microphone")
         }
+    }
+
+    /// Fired when the audio route changes mid-recording (e.g. AirPods drop,
+    /// default input switches). Tear the tap down and reinstall against the
+    /// new input format so the recording keeps working instead of dying silently.
+    private func handleConfigurationChange() {
+        // Only react if we're actively recording — otherwise nothing to do.
+        guard tapInstalled, let level = levelCallback else { return }
+        print("[FieldWhisperer] Audio configuration changed — restarting engine")
+
+        let onErr = errorCallback
+        // Preserve already-captured samples across the restart
+        let preservedSamples = samples
+
+        // Tear down but keep callbacks; tearDown() wipes them, so re-assign.
+        if tapInstalled {
+            engine.inputNode.removeTap(onBus: 0)
+            tapInstalled = false
+        }
+        if engine.isRunning { engine.stop() }
+        engine.reset()
+        engine = AVAudioEngine()
+        samples = preservedSamples
+        levelCallback = level
+        errorCallback = onErr
+
+        startEngine()
     }
 }

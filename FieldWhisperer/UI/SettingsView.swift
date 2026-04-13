@@ -6,8 +6,11 @@ struct SettingsView: View {
     @ObservedObject var transcriptionEngine: TranscriptionEngine
     var appDelegate: AppDelegate
 
-    @State private var selectedModel:    String = ModelManager.selectedModel
-    @State private var selectedHotkeyID: String = ModelManager.selectedHotkeyID
+    @State private var selectedModel:        String = ModelManager.selectedModel
+    @State private var selectedHotkeyID:    String = ModelManager.selectedHotkeyID
+    @State private var fillerFilterEnabled: Bool   = ModelManager.fillerFilterEnabled
+    @State private var activationMode:      ModelManager.ActivationMode = ModelManager.activationMode
+
     @State private var axGranted        = false
     @State private var micGranted       = false
     @State private var micNotDetermined = false
@@ -70,7 +73,42 @@ struct SettingsView: View {
             } header: {
                 Text("Recording Shortcut")
             } footer: {
-                Text("Hold the shortcut to record, release to transcribe and paste.")
+                Text(activationMode == .pushToTalk
+                     ? "Hold the shortcut to record, release to transcribe and paste."
+                     : "Tap the shortcut to start recording; tap again to transcribe and paste.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            // MARK: Activation mode
+            Section {
+                Picker("Activation", selection: $activationMode) {
+                    Text("Push-to-talk (hold)").tag(ModelManager.ActivationMode.pushToTalk)
+                    Text("Toggle (tap to start, tap to stop)").tag(ModelManager.ActivationMode.toggle)
+                }
+                .pickerStyle(.radioGroup)
+                .onChange(of: activationMode) { _, newValue in
+                    ModelManager.activationMode = newValue
+                }
+            } header: {
+                Text("Activation Mode")
+            } footer: {
+                Text("Toggle mode is handy for long recordings where holding the shortcut gets tiring.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            // MARK: Transcription options
+            Section {
+                Toggle("Remove filler words", isOn: $fillerFilterEnabled)
+                    .onChange(of: fillerFilterEnabled) { _, newValue in
+                        ModelManager.fillerFilterEnabled = newValue
+                    }
+
+            } header: {
+                Text("Options")
+            } footer: {
+                Text("Removes \"um\", \"uh\", \"hmm\" and similar filler words from transcriptions.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -112,7 +150,7 @@ struct SettingsView: View {
                     Spacer()
                     Text("v1.0").foregroundColor(.secondary)
                 }
-                Text("Hold \(ModelManager.availableHotkeys.first(where: { $0.id == selectedHotkeyID })?.label ?? "⌥Space") to record, release to transcribe and paste into any text field.")
+                Text(aboutShortcutHint)
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -121,6 +159,16 @@ struct SettingsView: View {
         .frame(width: 440)
         .onAppear { checkPermissions() }
         .onReceive(permissionTimer) { _ in checkPermissions() }
+    }
+
+    private var aboutShortcutHint: String {
+        let symbol = ModelManager.availableHotkeys.first(where: { $0.id == selectedHotkeyID })?.symbol ?? "⌥Space"
+        switch activationMode {
+        case .pushToTalk:
+            return "Hold \(symbol) to record, release to transcribe and paste into any text field."
+        case .toggle:
+            return "Tap \(symbol) to start recording, tap again to transcribe and paste into any text field."
+        }
     }
 
     // MARK: - Microphone row (inline to call requestAccess directly)

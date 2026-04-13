@@ -20,12 +20,6 @@
     <string>1</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
-    <!--
-        LSUIElement=YES makes this a background (agent) app.
-        No Dock icon; the only chrome is the menu bar status item.
-    -->
-    <key>LSUIElement</key>
-    <true/>
     <key>NSMicrophoneUsageDescription</key>
     <string>FieldWhisperer records your voice while you hold the FN key so it can transcribe your speech and paste the text into the focused field.</string>
     <key>NSPrincipalClass</key>

@@ -44,8 +44,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let hotkey = ModelManager.selectedHotkey
         hotKeyMonitor = HotKeyMonitor(
-            onKeyDown: { [weak self] in await self?.beginRecording() },
-            onKeyUp:   { [weak self] in await self?.endRecording()   }
+            onKeyDown: { [weak self] in
+                guard let self else { return }
+                switch ModelManager.activationMode {
+                case .pushToTalk: await self.beginRecording()
+                case .toggle:     await self.toggleRecording()
+                }
+            },
+            onKeyUp: { [weak self] in
+                guard let self else { return }
+                // Toggle mode ignores keyUp — stop is driven by the next keyDown.
+                if ModelManager.activationMode == .pushToTalk {
+                    await self.endRecording()
+                }
+            }
         )
         hotKeyMonitor.start(keyCode: hotkey.keyCode, modifiers: hotkey.modifiers)
     }
@@ -63,10 +75,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         state = .recording
         soundwavePanel.show()
         menuBarController.setRecordingIndicator(active: true)
-        audioRecorder.start { [weak self] level in
-            self?.soundwavePanel.updateLevel(level)
-        }
+        audioRecorder.start(
+            levelCallback: { [weak self] level in
+                self?.soundwavePanel.updateLevel(level)
+            },
+            onError: { [weak self] message in
+                self?.handleAudioError(message)
+            }
+        )
         startLiveTranscription()
+    }
+
+    /// Toggle activation: tap once to start recording, tap again to stop & paste.
+    private func toggleRecording() async {
+        switch state {
+        case .idle:         await beginRecording()
+        case .recording:    await endRecording()
+        case .transcribing: break  // ignore hotkey while we're transcribing
+        }
+    }
+
+    /// Called from AudioRecorder when setup fails (no mic, permission denied, etc.)
+    /// Abort the current recording attempt cleanly and surface the error in the pill.
+    private func handleAudioError(_ message: String) {
+        print("[FieldWhisperer] Audio error: \(message)")
+        stopLiveTranscription()
+        _ = audioRecorder.stop()
+        menuBarController.setRecordingIndicator(active: false)
+        soundwavePanel.showError(message)
+        state = .idle
     }
 
     private func endRecording() async {
@@ -82,7 +119,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         var textToInsert: String? = nil
         do {
             let text = try await transcriptionEngine.transcribe(audioSamples: samples)
-            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            var trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if ModelManager.fillerFilterEnabled {
+                trimmed = FillerWordFilter.filter(trimmed)
+            }
             textToInsert = trimmed.isEmpty ? nil : trimmed
         } catch {
             print("[FieldWhisperer] ❌ Transcription error: \(error.localizedDescription)")
@@ -94,19 +134,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        // Save to history and refresh menu before inserting
+        ModelManager.addToHistory(text)
+        menuBarController.rebuildMenu()
+
         print("[FieldWhisperer] Inserting: \"\(text.prefix(80))\"")
 
-        // Hide panel, wait for target app to regain focus, then insert
-        soundwavePanel.hide()
-        try? await Task.sleep(for: .milliseconds(350))
+        // Panel stays visible (nonactivating — target app keeps focus).
+        // Small delay lets any focus changes settle before the insert.
+        try? await Task.sleep(for: .milliseconds(150))
 
-        let result = textInserter.insert(text: text)
-        switch result {
-        case .accessibilityInserted, .pastedViaKeyboard:
-            break   // text landed in the field — no extra feedback needed
-        case .copiedToClipboard:
-            soundwavePanel.showCopied()
-        }
+        // Capture the target PID NOW (not at record-start) so the paste goes
+        // to whatever field the user has most recently focused — letting them
+        // start recording in Slack and finish by pasting into Notes.
+        let targetPid = NSWorkspace.shared.frontmostApplication?.processIdentifier
+
+        // Fire sound and paste simultaneously — player is pre-buffered so
+        // showCopied() plays instantly, and postToPid is near-instantaneous.
+        soundwavePanel.showCopied()
+        let _ = textInserter.insert(text: text, targetPid: targetPid)
 
         state = .idle
     }
@@ -148,6 +194,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         print("[FieldWhisperer] Hotkey changed to \(option.label)")
     }
 
+    // MARK: - Dock icon
+
+    /// Clicking the Dock icon when no window is open shows Settings.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag { menuBarControllerDidRequestSettings(menuBarController) }
+        return true
+    }
+
     // MARK: - Permissions
 
     @discardableResult
@@ -175,6 +229,16 @@ extension AppDelegate: MenuBarControllerDelegate {
 
     func menuBarControllerDidRequestQuit(_ controller: MenuBarController) {
         NSApp.terminate(nil)
+    }
+
+    func menuBarControllerDidRequestRepaste(_ controller: MenuBarController, text: String) {
+        // Capture frontmost app now (before menu closes and focus changes)
+        let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        Task {
+            // Small delay so the menu has fully closed before we try to insert
+            try? await Task.sleep(for: .milliseconds(200))
+            let _ = textInserter.insert(text: text, targetPid: pid)
+        }
     }
 }
 
