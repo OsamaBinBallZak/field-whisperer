@@ -53,7 +53,6 @@ hdiutil create \
   -volname "${APP_NAME}" \
   -srcfolder "${DMG_DIR}" \
   -format UDZO \
-  -ov \
   "${OUT_DMG}"
 
 echo "✅ Done: ${OUT_DMG}"
