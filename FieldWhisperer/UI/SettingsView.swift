@@ -163,7 +163,7 @@ struct SettingsView: View {
                         .foregroundColor(.secondary)
                     Text("        yes, a real one. probably.")
                         .font(.system(size: 11, design: .monospaced))
-                        .foregroundColor(.tertiary)
+                        .foregroundColor(.secondary.opacity(0.5))
                 }
                 .padding(.top, 2)
             }
