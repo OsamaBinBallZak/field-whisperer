@@ -52,11 +52,15 @@ MOUNT_DIR=$(hdiutil attach "${RW_DMG}" | grep "Volumes" | awk '{print $NF}')
 
 python3 "${PROJECT_ROOT}/Distribution/set-dmg-layout.py" "${MOUNT_DIR}"
 
-sleep 1
+sync
+sleep 3
 hdiutil detach "${MOUNT_DIR}" > /dev/null
+sleep 2
 
 echo "▶ Converting to compressed read-only DMG..."
-hdiutil convert "${RW_DMG}" -format UDZO -o "${OUT_DMG}" > /dev/null
+# Retry once — the file handle can take a moment to release after detach
+hdiutil convert "${RW_DMG}" -format UDZO -o "${OUT_DMG}" > /dev/null \
+  || { sleep 3; hdiutil convert "${RW_DMG}" -format UDZO -o "${OUT_DMG}" > /dev/null; }
 rm "${RW_DMG}"
 
 echo "✅ Done: ${OUT_DMG}"
