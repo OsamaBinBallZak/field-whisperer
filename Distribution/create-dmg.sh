@@ -5,13 +5,11 @@ set -e
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP_NAME="FieldWhisperer"
-DMG_NAME="${APP_NAME}.dmg"
 DERIVED_DATA="/tmp/FW-build"
 BUILD_APP="${DERIVED_DATA}/Build/Products/Release/${APP_NAME}.app"
-DMG_DIR="/tmp/FW-dmg"
-RW_DMG="/tmp/${APP_NAME}-rw.dmg"
-OUT_DMG=~/Desktop/"${DMG_NAME}"
+OUT_DMG=~/Desktop/"${APP_NAME}.dmg"
 
+# ── 1. Build ──────────────────────────────────────────────────────────────────
 echo "▶ Building Release..."
 xcodebuild \
   -project "${PROJECT_ROOT}/FieldWhisperer.xcodeproj" \
@@ -25,43 +23,30 @@ if [ ! -d "${BUILD_APP}" ]; then
   exit 1
 fi
 
+# ── 2. Sign ───────────────────────────────────────────────────────────────────
 echo "▶ Ad-hoc signing for distribution..."
 codesign --force --deep --sign - "${BUILD_APP}"
 
+# ── 3. Ensure dmgbuild is available ──────────────────────────────────────────
+if ! python3 -c "import dmgbuild" 2>/dev/null; then
+  echo "▶ Installing dmgbuild (one-time)..."
+  python3 -m pip install --quiet --break-system-packages dmgbuild 2>/dev/null \
+    || python3 -m pip install --quiet --user dmgbuild
+fi
+
+# ── 4. Generate background ────────────────────────────────────────────────────
 echo "▶ Generating background image..."
 python3 "${PROJECT_ROOT}/Distribution/generate-background.py"
 
-echo "▶ Staging DMG contents..."
-rm -rf "${DMG_DIR}"
-mkdir -p "${DMG_DIR}"
-cp -R "${BUILD_APP}" "${DMG_DIR}/"
-ln -s /Applications "${DMG_DIR}/Applications"
-
-# Always include custom background
-mkdir -p "${DMG_DIR}/.background"
-cp "${PROJECT_ROOT}/Distribution/dmg-background.png" "${DMG_DIR}/.background/background.png"
-
-echo "▶ Creating read-write DMG..."
-hdiutil create -volname "${APP_NAME}" \
-  -srcfolder "${DMG_DIR}" \
-  -ov -format UDRW \
-  "${RW_DMG}" > /dev/null
-
-echo "▶ Mounting and writing Finder layout..."
-MOUNT_DIR=$(hdiutil attach "${RW_DMG}" | grep "Volumes" | awk '{print $NF}')
-
-python3 "${PROJECT_ROOT}/Distribution/set-dmg-layout.py" "${MOUNT_DIR}"
-
-sync
-sleep 3
-hdiutil detach "${MOUNT_DIR}" > /dev/null
-sleep 2
-
-echo "▶ Converting to compressed read-only DMG..."
-# Retry once — the file handle can take a moment to release after detach
-hdiutil convert "${RW_DMG}" -format UDZO -o "${OUT_DMG}" > /dev/null \
-  || { sleep 3; hdiutil convert "${RW_DMG}" -format UDZO -o "${OUT_DMG}" > /dev/null; }
-rm "${RW_DMG}"
+# ── 5. Build DMG ─────────────────────────────────────────────────────────────
+echo "▶ Building DMG..."
+rm -f "${OUT_DMG}"
+python3 -m dmgbuild \
+  -s "${PROJECT_ROOT}/Distribution/dmgbuild-settings.py" \
+  -D "app=${BUILD_APP}" \
+  -D "background=${PROJECT_ROOT}/Distribution/dmg-background.png" \
+  "${APP_NAME}" \
+  "${OUT_DMG}"
 
 echo "✅ Done: ${OUT_DMG}"
 echo ""
