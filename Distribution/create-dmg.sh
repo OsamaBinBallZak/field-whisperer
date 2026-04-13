@@ -7,7 +7,8 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP_NAME="FieldWhisperer"
 DERIVED_DATA="/tmp/FW-build"
 BUILD_APP="${DERIVED_DATA}/Build/Products/Release/${APP_NAME}.app"
-DMG_DIR="/tmp/FW-dmg"
+DMG_STAGING="/tmp/FW-dmg"
+DMG_RW="/tmp/FW-rw"        # hdiutil appends .dmg automatically
 OUT_DMG=~/Desktop/"${APP_NAME}.dmg"
 
 # ── 1. Build ──────────────────────────────────────────────────────────────────
@@ -30,24 +31,32 @@ codesign --force --deep --sign - "${BUILD_APP}"
 
 # ── 3. Stage DMG contents ─────────────────────────────────────────────────────
 echo "▶ Staging DMG contents..."
-rm -rf "${DMG_DIR}"
-mkdir -p "${DMG_DIR}"
-cp -R "${BUILD_APP}" "${DMG_DIR}/"
-ln -s /Applications "${DMG_DIR}/Applications"
+rm -rf "${DMG_STAGING}"
+mkdir -p "${DMG_STAGING}"
+cp -R "${BUILD_APP}" "${DMG_STAGING}/"
+ln -s /Applications "${DMG_STAGING}/Applications"
 
-# ── 4. Write icon positions into staging DS_Store ─────────────────────────────
-python3 "${PROJECT_ROOT}/Distribution/set-dmg-layout.py" "${DMG_DIR}"
-
-# ── 5. Create compressed DMG in one shot ──────────────────────────────────────
-# Single hdiutil create call — no intermediate UDRW, no attach, no convert.
-# Avoids the hdiutil convert EAGAIN issue on macOS 26 Tahoe.
+# ── 4. Create writable DMG ────────────────────────────────────────────────────
+# UDRW (writable) so we can mount and write DS_Store to the live volume path.
+# We never convert — avoids the hdiutil convert EAGAIN bug on macOS 26 Tahoe.
 echo "▶ Creating DMG..."
-rm -f "${OUT_DMG}"
+rm -f "${DMG_RW}.dmg"
 hdiutil create \
   -volname "${APP_NAME}" \
-  -srcfolder "${DMG_DIR}" \
-  -format UDZO \
-  "${OUT_DMG}"
+  -srcfolder "${DMG_STAGING}" \
+  -format UDRW \
+  "${DMG_RW}"
+
+# ── 5. Mount, write Finder layout, unmount ────────────────────────────────────
+echo "▶ Configuring Finder layout..."
+MOUNT_POINT=$(hdiutil attach "${DMG_RW}.dmg" -readwrite -noverify -noautoopen \
+              | grep "/Volumes" | awk '{print $NF}')
+python3 "${PROJECT_ROOT}/Distribution/set-dmg-layout.py" "${MOUNT_POINT}"
+hdiutil detach "${MOUNT_POINT}" -force
+
+# ── 6. Move finished DMG to Desktop ───────────────────────────────────────────
+rm -f "${OUT_DMG}"
+mv "${DMG_RW}.dmg" "${OUT_DMG}"
 
 echo "✅ Done: ${OUT_DMG}"
 echo ""
