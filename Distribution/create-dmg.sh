@@ -58,7 +58,9 @@ else
   BG_SCRIPT=''
 fi
 
-osascript <<APPLESCRIPT
+# Layout step is best-effort — requires Automation permission for Finder.
+# If it fails the DMG still works, just without custom icon positions.
+osascript <<APPLESCRIPT 2>/dev/null || echo "  (Finder layout skipped — no Automation permission; DMG will still work)"
 tell application "Finder"
   tell disk "${APP_NAME}"
     open
