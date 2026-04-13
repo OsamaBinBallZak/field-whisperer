@@ -18,7 +18,7 @@ xcodebuild \
   -scheme "${APP_NAME}" \
   -configuration Release \
   -derivedDataPath "${DERIVED_DATA}" \
-  build 2>&1 | grep -E "(error:|warning:|Build succeeded|Build FAILED)"
+  build 2>&1 | grep -E "(error:|warning:|BUILD SUCCEEDED|BUILD FAILED)" || true
 
 if [ ! -d "${BUILD_APP}" ]; then
   echo "❌ Build failed — ${BUILD_APP} not found."
