@@ -28,20 +28,18 @@ fi
 echo "▶ Ad-hoc signing for distribution..."
 codesign --force --deep --sign - "${BUILD_APP}"
 
+echo "▶ Generating background image..."
+python3 "${PROJECT_ROOT}/Distribution/generate-background.py"
+
 echo "▶ Staging DMG contents..."
 rm -rf "${DMG_DIR}"
 mkdir -p "${DMG_DIR}"
 cp -R "${BUILD_APP}" "${DMG_DIR}/"
 ln -s /Applications "${DMG_DIR}/Applications"
 
-# Optional custom background (place Distribution/dmg-background.png in the repo)
-if [ -f "${PROJECT_ROOT}/Distribution/dmg-background.png" ]; then
-  mkdir -p "${DMG_DIR}/.background"
-  cp "${PROJECT_ROOT}/Distribution/dmg-background.png" "${DMG_DIR}/.background/background.png"
-  HAS_BACKGROUND=1
-else
-  HAS_BACKGROUND=0
-fi
+# Always include custom background
+mkdir -p "${DMG_DIR}/.background"
+cp "${PROJECT_ROOT}/Distribution/dmg-background.png" "${DMG_DIR}/.background/background.png"
 
 echo "▶ Creating read-write DMG..."
 hdiutil create -volname "${APP_NAME}" \
@@ -49,40 +47,12 @@ hdiutil create -volname "${APP_NAME}" \
   -ov -format UDRW \
   "${RW_DMG}" > /dev/null
 
-echo "▶ Mounting and configuring Finder layout..."
+echo "▶ Mounting and writing Finder layout..."
 MOUNT_DIR=$(hdiutil attach "${RW_DMG}" | grep "Volumes" | awk '{print $NF}')
 
-if [ "${HAS_BACKGROUND}" -eq 1 ]; then
-  BG_SCRIPT='set background picture of viewOptions to file ".background:background.png"'
-else
-  BG_SCRIPT=''
-fi
+python3 "${PROJECT_ROOT}/Distribution/set-dmg-layout.py" "${MOUNT_DIR}"
 
-# Layout step is best-effort — requires Automation permission for Finder.
-# If it fails the DMG still works, just without custom icon positions.
-osascript <<APPLESCRIPT 2>/dev/null || echo "  (Finder layout skipped — no Automation permission; DMG will still work)"
-tell application "Finder"
-  tell disk "${APP_NAME}"
-    open
-    set current view of container window to icon view
-    set toolbar visible of container window to false
-    set statusbar visible of container window to false
-    set bounds of container window to {100, 100, 700, 500}
-    set viewOptions to the icon view options of container window
-    set arrangement of viewOptions to not arranged
-    set icon size of viewOptions to 100
-    ${BG_SCRIPT}
-    set position of item "${APP_NAME}.app" of container window to {160, 230}
-    set position of item "Applications" of container window to {460, 230}
-    close
-    open
-    update without registering applications
-    close
-  end tell
-end tell
-APPLESCRIPT
-
-sleep 2
+sleep 1
 hdiutil detach "${MOUNT_DIR}" > /dev/null
 
 echo "▶ Converting to compressed read-only DMG..."
