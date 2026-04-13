@@ -7,6 +7,7 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP_NAME="FieldWhisperer"
 DERIVED_DATA="/tmp/FW-build"
 BUILD_APP="${DERIVED_DATA}/Build/Products/Release/${APP_NAME}.app"
+DMG_DIR="/tmp/FW-dmg"
 OUT_DMG=~/Desktop/"${APP_NAME}.dmg"
 
 # ── 1. Build ──────────────────────────────────────────────────────────────────
@@ -27,32 +28,32 @@ fi
 echo "▶ Ad-hoc signing for distribution..."
 codesign --force --deep --sign - "${BUILD_APP}"
 
-# ── 3. Ensure dmgbuild is available ──────────────────────────────────────────
-if ! python3 -c "import dmgbuild" 2>/dev/null; then
-  echo "▶ Installing dmgbuild (one-time)..."
-  python3 -m pip install --quiet --break-system-packages dmgbuild 2>/dev/null \
-    || python3 -m pip install --quiet --user dmgbuild
-fi
-
-# ── 4. Generate background ────────────────────────────────────────────────────
+# ── 3. Generate background ────────────────────────────────────────────────────
 echo "▶ Generating background image..."
 python3 "${PROJECT_ROOT}/Distribution/generate-background.py"
 
-# ── 5. Eject any stale FieldWhisperer volume from a previous run ──────────────
-for vol in "/Volumes/${APP_NAME}" "/Volumes/${APP_NAME} 1" "/Volumes/${APP_NAME} 2"; do
-  [ -d "$vol" ] && hdiutil detach "$vol" -force 2>/dev/null || true
-done
-# Clean up any leftover temp UDRW from a previous crash
-rm -f /tmp/dmgbuild-*.dmg /tmp/FW-*.dmg
+# ── 4. Stage DMG contents ─────────────────────────────────────────────────────
+echo "▶ Staging DMG contents..."
+rm -rf "${DMG_DIR}"
+mkdir -p "${DMG_DIR}"
+cp -R "${BUILD_APP}" "${DMG_DIR}/"
+ln -s /Applications "${DMG_DIR}/Applications"
+mkdir -p "${DMG_DIR}/.background"
+cp "${PROJECT_ROOT}/Distribution/dmg-background.png" "${DMG_DIR}/.background/background.png"
 
-# ── 6. Build DMG ─────────────────────────────────────────────────────────────
-echo "▶ Building DMG..."
+# ── 5. Write icon positions into staging DS_Store ─────────────────────────────
+python3 "${PROJECT_ROOT}/Distribution/set-dmg-layout.py" "${DMG_DIR}"
+
+# ── 6. Create compressed DMG in one shot ──────────────────────────────────────
+# Single hdiutil create call — no intermediate UDRW, no attach, no convert.
+# Avoids the hdiutil convert EAGAIN issue on macOS 26 Tahoe.
+echo "▶ Creating DMG..."
 rm -f "${OUT_DMG}"
-python3 -m dmgbuild \
-  -s "${PROJECT_ROOT}/Distribution/dmgbuild-settings.py" \
-  -D "app=${BUILD_APP}" \
-  -D "background=${PROJECT_ROOT}/Distribution/dmg-background.png" \
-  "${APP_NAME}" \
+hdiutil create \
+  -volname "${APP_NAME}" \
+  -srcfolder "${DMG_DIR}" \
+  -format UDZO \
+  -ov \
   "${OUT_DMG}"
 
 echo "✅ Done: ${OUT_DMG}"
