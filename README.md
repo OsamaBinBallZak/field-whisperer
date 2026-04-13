@@ -146,18 +146,49 @@ AppDelegate (state machine: idle → recording → transcribing → idle)
 
 ## Distribution
 
-### Share with a friend (right now, no cost)
+### Share with a friend
 
-The quickest way to share — no developer account or Xcode required on their end:
+#### Option A — DMG (recommended, most polished)
+
+Run the included build script from the project root:
+
+```bash
+bash Distribution/create-dmg.sh
+```
+
+This builds a Release `.app`, signs it ad-hoc, and produces **FieldWhisperer.dmg** on your Desktop. Send the DMG via AirDrop, Google Drive, or email.
+
+Recipient steps:
+1. Double-click the DMG — a Finder window opens showing the app and an Applications shortcut
+2. Drag **FieldWhisperer** onto **Applications**
+3. **Right-click → Open** on first launch (Gatekeeper bypass — only needed once)
+4. Grant **Microphone** and **Accessibility** permissions
+5. Wait for "Ready · Small" in the menu bar (model downloads once, ~140 MB)
+
+#### Option B — Zip (quickest)
 
 1. Right-click **FieldWhisperer.app** in `/Applications` → **Compress**
-2. Send the `.zip` via **AirDrop**, email, or Google Drive
+2. Send the `.zip` via AirDrop, email, or Google Drive
 3. Friend unzips and drags to their `/Applications`
-4. Friend **right-clicks → Open** to bypass the Gatekeeper "unidentified developer" warning (only needed once)
-5. They grant **Microphone** and **Accessibility** permissions on first run — done
-6. On first launch the app downloads the Whisper model (~140 MB) — internet required once
+4. Friend **right-clicks → Open** to bypass Gatekeeper (only needed once)
 
-> **Mac mini / no built-in mic:** Connect AirPods or a USB microphone *before* launching the app. Go to **System Settings → Sound → Input** and confirm the mic is selected. The app will show "No microphone detected" in the floating panel if it can't find an input device.
+#### Gatekeeper bypass options
+
+If right-click → Open doesn't work, try one of these:
+
+**Terminal command (most reliable):**
+```bash
+xattr -cr /Applications/FieldWhisperer.app
+```
+Then double-click to open normally.
+
+**System Settings:**
+1. Try to open the app (it will be blocked)
+2. Go to **System Settings → Privacy & Security**
+3. Scroll down — you'll see "FieldWhisperer was blocked"
+4. Click **Open Anyway**
+
+> **Mac mini / no built-in mic:** Connect AirPods or a USB microphone *before* launching the app. Check **System Settings → Sound → Input** and confirm the mic is selected. The app shows "No microphone detected" in the floating panel if no input device is found.
 
 ### App Store — not viable
 
