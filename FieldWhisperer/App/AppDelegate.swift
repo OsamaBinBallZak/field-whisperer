@@ -111,10 +111,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         stopLiveTranscription()
 
         state = .transcribing
-        let samples = audioRecorder.stop()
-        print("[FieldWhisperer] Captured \(samples.count) samples (~\(String(format: "%.1f", Double(samples.count)/16000))s)")
         soundwavePanel.showTranscribing()
         menuBarController.setRecordingIndicator(active: false)
+
+        // Keep recording for a short tail so the last word isn't clipped.
+        // Speech typically trails 200-400ms after the speaker "finishes".
+        try? await Task.sleep(for: .milliseconds(350))
+
+        let samples = audioRecorder.stop()
+        print("[FieldWhisperer] Captured \(samples.count) samples (~\(String(format: "%.1f", Double(samples.count)/16000))s)")
 
         var textToInsert: String? = nil
         do {
