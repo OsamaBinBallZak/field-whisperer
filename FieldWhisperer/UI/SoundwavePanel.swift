@@ -73,7 +73,7 @@ final class SoundwavePanel: NSPanel {
 
         // Kick off entry on next runloop tick so SwiftUI renders the initial collapsed state first
         DispatchQueue.main.async {
-            withAnimation(.spring(response: 0.48, dampingFraction: 0.62)) {
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
                 self.viewModel.isVisible = true
             }
         }
@@ -115,7 +115,7 @@ final class SoundwavePanel: NSPanel {
             viewModel.isVisible = false
             orderFront(nil)
             DispatchQueue.main.async {
-                withAnimation(.spring(response: 0.48, dampingFraction: 0.62)) {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
                     self.viewModel.isVisible = true
                 }
             }

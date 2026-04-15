@@ -15,7 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private enum AppState { case idle, recording, transcribing }
     private var state: AppState = .idle
 
-    // Live transcription: runs WhisperKit on the growing buffer every N seconds
+    // Live transcription: runs Parakeet on the growing buffer every N seconds
     private var liveTranscriptionTask: Task<Void, Never>?
     private let liveTranscriptionInterval: TimeInterval = 3.0
 
@@ -111,10 +111,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         stopLiveTranscription()
 
         state = .transcribing
-        let samples = audioRecorder.stop()
-        print("[FieldWhisperer] Captured \(samples.count) samples (~\(String(format: "%.1f", Double(samples.count)/16000))s)")
         soundwavePanel.showTranscribing()
         menuBarController.setRecordingIndicator(active: false)
+
+        // Keep recording for a short tail so the last word isn't clipped.
+        // Speech typically trails 200-400ms after the speaker "finishes".
+        try? await Task.sleep(for: .milliseconds(350))
+
+        let samples = audioRecorder.stop()
+        print("[FieldWhisperer] Captured \(samples.count) samples (~\(String(format: "%.1f", Double(samples.count)/16000))s)")
 
         var textToInsert: String? = nil
         do {
@@ -192,14 +197,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ModelManager.selectedHotkeyID = option.id
         hotKeyMonitor.updateHotkey(keyCode: option.keyCode, modifiers: option.modifiers)
         print("[FieldWhisperer] Hotkey changed to \(option.label)")
-    }
-
-    // MARK: - Dock icon
-
-    /// Clicking the Dock icon when no window is open shows Settings.
-    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if !flag { menuBarControllerDidRequestSettings(menuBarController) }
-        return true
     }
 
     // MARK: - Permissions

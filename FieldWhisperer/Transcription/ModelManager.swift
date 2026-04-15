@@ -4,7 +4,7 @@ import Carbon.HIToolbox
 /// Central registry for available Whisper model variants and hotkey options.
 enum ModelManager {
 
-    // MARK: - Whisper models
+    // MARK: - Parakeet models
 
     struct ModelInfo {
         let id: String
@@ -12,14 +12,12 @@ enum ModelManager {
     }
 
     static let availableModels: [ModelInfo] = [
-        ModelInfo(id: "openai_whisper-tiny",   displayName: "Tiny   (~40 MB) – Fastest"),
-        ModelInfo(id: "openai_whisper-base",   displayName: "Base   (~75 MB) – Fast"),
-        ModelInfo(id: "openai_whisper-small",  displayName: "Small  (~140 MB) – Balanced ✦"),
-        ModelInfo(id: "openai_whisper-medium", displayName: "Medium (~450 MB) – Accurate"),
+        ModelInfo(id: "parakeet-v3", displayName: "Parakeet V3 (~494 MB) – Multilingual ✦"),
+        ModelInfo(id: "parakeet-v2", displayName: "Parakeet V2 (~476 MB) – English-optimized"),
     ]
 
-    private static let modelKey    = "selectedWhisperModel"
-    private static let defaultModel = "openai_whisper-small"
+    private static let modelKey    = "selectedParakeetModel"
+    private static let defaultModel = "parakeet-v3"
 
     static var selectedModel: String {
         get { UserDefaults.standard.string(forKey: modelKey) ?? defaultModel }
