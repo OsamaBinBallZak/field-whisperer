@@ -23,6 +23,7 @@
 		CF000048000000000000001A /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = CF000053000000000000001A /* WhisperKit */; };
 		CF000055000000000000001A /* FillerWordFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF000054000000000000001A /* FillerWordFilter.swift */; };
 		CF000056000000000000001A /* field-whisperer-scribble-sound.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = CF000057000000000000001A /* field-whisperer-scribble-sound.mp3 */; };
+		CF000059000000000000001A /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = CF000058000000000000001A /* PrivacyInfo.xcprivacy */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -44,6 +45,7 @@
 		CF000033000000000000001A /* FieldWhisperer.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FieldWhisperer.entitlements; sourceTree = "<group>"; };
 		CF000034000000000000001A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		CF000057000000000000001A /* field-whisperer-scribble-sound.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = "field-whisperer-scribble-sound.mp3"; sourceTree = "<group>"; };
+		CF000058000000000000001A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -142,6 +144,7 @@
 				CF000033000000000000001A /* FieldWhisperer.entitlements */,
 				CF000034000000000000001A /* Assets.xcassets */,
 				CF000057000000000000001A /* field-whisperer-scribble-sound.mp3 */,
+				CF000058000000000000001A /* PrivacyInfo.xcprivacy */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -220,6 +223,7 @@
 			files = (
 				CF000047000000000000001A /* Assets.xcassets in Resources */,
 				CF000056000000000000001A /* field-whisperer-scribble-sound.mp3 in Resources */,
+				CF000059000000000000001A /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
