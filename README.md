@@ -12,10 +12,10 @@ Hold **⌥Space** (Option+Space) to record, release to transcribe — the text i
 - **Auto-paste** — transcribed text is inserted directly at the cursor in native apps (via Accessibility), and automatically pasted via Cmd+V in Electron apps (Slack, Claude, browsers); text is always on clipboard as a fallback
 - **Pastes to last-focused field** — click into a different field while recording and the text goes there on release
 - **Floating soundwave** — animated panel at the top-centre of your screen shows recording state, live transcription preview, and completion feedback
-- **Menu bar + Dock** — lives in the Apple menu bar and the Dock; clicking the Dock icon opens Settings
+- **Menu bar only** — lives in the Apple menu bar; no Dock icon
 - **Remove filler words** — optional filter strips "um", "uh", "hmm" and similar from transcriptions
-- **Powered by Whisper** — local, on-device transcription via [WhisperKit](https://github.com/argmaxinc/WhisperKit) (no API keys, no cloud)
-- **Model selector** — switch between Tiny / Base / Small / Medium from Settings
+- **Powered by Parakeet V3** — local, on-device transcription via [FluidAudio](https://github.com/FluidInference/FluidAudio) + NVIDIA Parakeet (no API keys, no cloud, ~10x faster than Whisper)
+- **Model selector** — switch between Parakeet V3 (multilingual, 25 languages) and V2 (English-optimized) from Settings
 
 ---
 
@@ -42,7 +42,7 @@ open FieldWhisperer.xcodeproj
 2. Go to **Signing & Capabilities → Team** and pick your Apple Developer team.
 3. Press **⌘R** to build and run.
 
-The app appears in the menu bar and the Dock.
+The app appears in the menu bar (no Dock icon).
 
 ### Permissions
 
@@ -56,7 +56,7 @@ The app appears in the menu bar and the Dock.
 
 ### First launch: model download
 
-On first run the app downloads the Whisper model (~140 MB for the default *Small* model) from HuggingFace. The menu bar icon shows "Loading…" until complete. This is a one-time step; subsequent launches load from cache in under 3 seconds.
+On first run the app downloads the Parakeet V3 model (~494 MB) from HuggingFace. The menu bar icon shows "Loading…" until complete. This is a one-time step; subsequent launches load from cache in under 3 seconds.
 
 ---
 
@@ -110,10 +110,8 @@ Click the menu bar icon → **Settings…**
 
 | Model | Size | Best for |
 |---|---|---|
-| Tiny | ~40 MB | Fastest; great on Intel Macs |
-| Base | ~75 MB | Fast; balanced |
-| **Small** ✦ | ~140 MB | Default; great on all Macs |
-| Medium | ~450 MB | Highest accuracy; Apple Silicon |
+| **Parakeet V3** ✦ | ~494 MB | Default; multilingual (25 European languages); ~10x faster than Whisper |
+| Parakeet V2 | ~476 MB | English-optimized; slightly faster for English-only use |
 
 ### Activation
 
@@ -134,7 +132,7 @@ Shows current status of Microphone and Accessibility and provides quick links to
 AppDelegate (state machine: idle → recording → transcribing → idle)
 ├── HotKeyMonitor      Carbon RegisterEventHotKey (⌥Space, no Input Monitoring needed)
 ├── AudioRecorder      AVAudioEngine → 16 kHz mono Float32
-├── TranscriptionEngine  WhisperKit wrapper (async, @MainActor)
+├── TranscriptionEngine  FluidAudio/Parakeet wrapper (async, @MainActor)
 ├── TextInserter       AXUIElement primary; CGEventPostToPid Cmd+V fallback; clipboard always set
 ├── SoundwavePanel     NSPanel (.floating, .nonactivatingPanel)
 │   └── SoundwaveView  SwiftUI animated bars / transcribing spinner / copied banner
@@ -163,7 +161,7 @@ Recipient steps:
 2. Drag **FieldWhisperer** onto **Applications**
 3. **Right-click → Open** on first launch (Gatekeeper bypass — only needed once)
 4. Grant **Microphone** and **Accessibility** permissions
-5. Wait for "Ready · Small" in the menu bar (model downloads once, ~140 MB)
+5. Wait for "Ready · Parakeet V3" in the menu bar (model downloads once, ~494 MB)
 
 #### Option B — Zip (quickest)
 
@@ -220,7 +218,7 @@ Shipping to the App Store would require replacing all three mechanisms — effec
 
 | Symptom | Fix |
 |---|---|
-| ⌥Space does nothing | Wait for "Ready · Small" in the menu bar — model is still loading |
+| ⌥Space does nothing | Wait for "Ready" in the menu bar — model is still loading |
 | ⌥Space does nothing (model ready) | Make sure no other app has grabbed ⌥Space (Alfred, Raycast, Spotlight) |
 | Text not pasted automatically | Accessibility not granted — enable in System Settings → Privacy → Accessibility |
 | Accessibility shows "Open Settings" despite being ON | Remove FieldWhisperer from the Accessibility list and re-add it (binary changed after rebuild) |
