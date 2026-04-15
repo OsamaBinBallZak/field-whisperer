@@ -117,23 +117,45 @@ struct SettingsView: View {
             Section {
                 // Accessibility
                 VStack(alignment: .leading, spacing: 6) {
-                    permissionRow(
-                        icon: "hand.raised.fill",
-                        title: "Accessibility (optional)",
-                        subtitle: axGranted
-                            ? "Text will be inserted directly into focused fields"
-                            : "Without this, text is copied to clipboard instead (⌘V to paste)",
-                        granted: axGranted,
-                        buttonLabel: "Open Settings",
-                        action: { openSystemPrivacy("Privacy_Accessibility") }
-                    )
+                    HStack(alignment: .center, spacing: 12) {
+                        Image(systemName: "hand.raised.fill")
+                            .foregroundColor(.secondary)
+                            .frame(width: 20)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Accessibility (optional)").fontWeight(.medium)
+                            Text(axGranted
+                                 ? "Text is inserted directly at the cursor in the focused field"
+                                 : "Without this, text is pasted via ⌘V instead")
+                                .font(.caption).foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        if axGranted {
+                            Label("Granted", systemImage: "checkmark.circle.fill")
+                                .foregroundColor(.green).font(.callout)
+                        } else {
+                            HStack(spacing: 8) {
+                                Button("Re-check") { checkPermissions() }
+                                    .controlSize(.small)
+                                Button("Open Settings") { openSystemPrivacy("Privacy_Accessibility") }
+                                    .controlSize(.small)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 2)
+
                     if !axGranted {
-                        Text("Tip: If already enabled but not detected, remove FieldWhisperer " +
-                             "from the Accessibility list (click −) and re-add it (click +). " +
-                             "This is needed after each Xcode rebuild.")
-                            .font(.caption2)
-                            .foregroundColor(.orange)
-                            .padding(.leading, 32)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("First time:")
+                                .font(.caption2).fontWeight(.semibold).foregroundColor(.secondary)
+                            Text("Open Settings → find FieldWhisperer → toggle it on.")
+                                .font(.caption2).foregroundColor(.secondary)
+                            Text("After a rebuild:")
+                                .font(.caption2).fontWeight(.semibold).foregroundColor(.secondary)
+                                .padding(.top, 2)
+                            Text("If the toggle is already on but not detected, click − to remove FieldWhisperer then + to re-add the freshly built app.")
+                                .font(.caption2).foregroundColor(.secondary)
+                        }
+                        .padding(.leading, 32)
                     }
                 }
 
