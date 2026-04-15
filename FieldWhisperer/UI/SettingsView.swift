@@ -53,7 +53,7 @@ struct SettingsView: View {
                 Text("Transcription Model")
             } footer: {
                 Text("Models are downloaded once and cached on your Mac.\n" +
-                     "Small is recommended for most users.")
+                     "Parakeet V3 (multilingual) is recommended for most users.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }

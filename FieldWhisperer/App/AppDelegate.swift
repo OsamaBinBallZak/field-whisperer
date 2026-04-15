@@ -15,7 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private enum AppState { case idle, recording, transcribing }
     private var state: AppState = .idle
 
-    // Live transcription: runs WhisperKit on the growing buffer every N seconds
+    // Live transcription: runs Parakeet on the growing buffer every N seconds
     private var liveTranscriptionTask: Task<Void, Never>?
     private let liveTranscriptionInterval: TimeInterval = 3.0
 
@@ -192,14 +192,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ModelManager.selectedHotkeyID = option.id
         hotKeyMonitor.updateHotkey(keyCode: option.keyCode, modifiers: option.modifiers)
         print("[FieldWhisperer] Hotkey changed to \(option.label)")
-    }
-
-    // MARK: - Dock icon
-
-    /// Clicking the Dock icon when no window is open shows Settings.
-    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if !flag { menuBarControllerDidRequestSettings(menuBarController) }
-        return true
     }
 
     // MARK: - Permissions

@@ -1,9 +1,9 @@
 import Foundation
-import WhisperKit
+import FluidAudio
 
-/// Wraps WhisperKit to provide async transcription.
-/// Models are downloaded from HuggingFace on first use and cached in
-/// ~/Library/Caches/huggingface/hub/  (subsequent launches load instantly).
+/// Wraps FluidAudio's AsrManager to provide async Parakeet V3 transcription.
+/// Models are downloaded from HuggingFace on first use and cached locally
+/// (subsequent launches load instantly).
 @MainActor
 final class TranscriptionEngine: ObservableObject {
 
@@ -27,7 +27,7 @@ final class TranscriptionEngine: ObservableObject {
     @Published var loadingState: LoadingState = .unloaded
     @Published var currentModelName: String = ModelManager.selectedModel
 
-    private var whisperKit: WhisperKit?
+    private var asrManager: AsrManager?
 
     var isReady: Bool {
         if case .ready = loadingState { return true }
@@ -48,22 +48,16 @@ final class TranscriptionEngine: ObservableObject {
     func loadModel(variant: String) async {
         currentModelName = variant
         loadingState = .loading
-        print("[FieldWhisperer] Loading model: \(modelDisplayName(variant)) (\(variant))…")
+        print("[FieldWhisperer] Loading Parakeet model: \(modelDisplayName(variant)) (\(variant))…")
 
         do {
-            // WhisperKit automatically downloads the model if not cached
-            // and loads the CoreML optimized variant for the current device.
-            let config = WhisperKitConfig(
-                model: variant,
-                verbose: true,
-                logLevel: .debug,
-                prewarm: false,
-                load: true,
-                download: true
-            )
-            whisperKit = try await WhisperKit(config)
+            let version: AsrModelVersion = (variant == "parakeet-v2") ? .v2 : .v3
+            let models = try await AsrModels.downloadAndLoad(version: version)
+            let asr = AsrManager(config: .default)
+            try await asr.loadModels(models)
+            asrManager = asr
             loadingState = .ready
-            print("[FieldWhisperer] ✅ Model loaded successfully: \(variant)")
+            print("[FieldWhisperer] ✅ Parakeet model loaded successfully: \(variant)")
         } catch {
             let msg = error.localizedDescription
             loadingState = .failed(msg)
@@ -72,7 +66,10 @@ final class TranscriptionEngine: ObservableObject {
     }
 
     func reloadModel(variant: String) async {
-        whisperKit = nil
+        if let asr = asrManager {
+            await asr.cleanup()
+        }
+        asrManager = nil
         loadingState = .unloaded
         await loadModel(variant: variant)
     }
@@ -80,7 +77,7 @@ final class TranscriptionEngine: ObservableObject {
     // MARK: - Transcription
 
     func transcribe(audioSamples: [Float]) async throws -> String {
-        guard let wk = whisperKit else {
+        guard let asr = asrManager else {
             throw TranscriptionError.notLoaded
         }
         // Minimum ~0.5 s of audio to avoid spurious transcriptions
@@ -93,20 +90,8 @@ final class TranscriptionEngine: ObservableObject {
         print("[FieldWhisperer] Transcribing \(audioSamples.count) samples " +
               "(~\(String(format: "%.1f", Double(audioSamples.count) / targetSampleRate))s of audio)…")
 
-        let options = DecodingOptions(
-            verbose: false,
-            task: .transcribe,
-            language: nil,              // auto-detect
-            temperature: 0.0,
-            temperatureFallbackCount: 3,
-            sampleLength: 224,
-            usePrefillPrompt: true,
-            skipSpecialTokens: true,
-            withoutTimestamps: true
-        )
-
-        let results = try await wk.transcribe(audioArray: audioSamples, decodeOptions: options)
-        let text = results.compactMap { $0.text }.joined(separator: " ")
+        let result = try await asr.transcribe(audioSamples, source: .system)
+        let text = result.text
         print("[FieldWhisperer] Transcription result: \"\(text)\"")
         return text
     }
@@ -126,6 +111,6 @@ enum TranscriptionError: LocalizedError {
     case notLoaded
 
     var errorDescription: String? {
-        "Whisper model is not loaded yet. Please wait for the model to finish loading."
+        "Parakeet model is not loaded yet. Please wait for the model to finish loading."
     }
 }
