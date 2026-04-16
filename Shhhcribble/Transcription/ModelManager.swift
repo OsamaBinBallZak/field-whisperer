@@ -83,7 +83,7 @@ enum ModelManager {
 
     // MARK: - Transcription history
 
-    struct TranscriptionEntry {
+    struct TranscriptionEntry: Codable {
         let text: String
         let date: Date
 
@@ -94,14 +94,32 @@ enum ModelManager {
         }
     }
 
-    private(set) static var history: [TranscriptionEntry] = []
+    private static let historyKey = "transcriptionHistory"
+    private static let historyCap = 10
+
+    /// Persisted across launches via UserDefaults (JSON-encoded). The cap is
+    /// kept at historyCap items; adding past that drops the oldest.
+    private(set) static var history: [TranscriptionEntry] = {
+        guard let data = UserDefaults.standard.data(forKey: historyKey),
+              let decoded = try? JSONDecoder().decode([TranscriptionEntry].self, from: data)
+        else { return [] }
+        return Array(decoded.prefix(historyCap))
+    }()
 
     static func addToHistory(_ text: String) {
         history.insert(TranscriptionEntry(text: text, date: Date()), at: 0)
-        if history.count > 20 { history = Array(history.prefix(20)) }
+        if history.count > historyCap { history = Array(history.prefix(historyCap)) }
+        persistHistory()
     }
 
     static func clearHistory() {
         history.removeAll()
+        persistHistory()
+    }
+
+    private static func persistHistory() {
+        if let data = try? JSONEncoder().encode(history) {
+            UserDefaults.standard.set(data, forKey: historyKey)
+        }
     }
 }

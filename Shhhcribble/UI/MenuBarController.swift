@@ -95,7 +95,7 @@ final class MenuBarController: NSObject {
             let descItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
             descItem.isEnabled = false
             descItem.attributedTitle = NSAttributedString(
-                string: "Saves your last 20 transcriptions.\nClick any item to copy & paste it.",
+                string: "Click any item to copy & paste it.",
                 attributes: [.font: NSFont.systemFont(ofSize: 11),
                              .foregroundColor: NSColor.secondaryLabelColor])
             historyMenu.addItem(descItem)
@@ -105,7 +105,7 @@ final class MenuBarController: NSObject {
             // History entries with clipboard icon
             let clipIcon = NSImage(systemSymbolName: "doc.on.clipboard",
                                    accessibilityDescription: "Paste")
-            for entry in ModelManager.history.prefix(10) {
+            for entry in ModelManager.history {
                 let item = NSMenuItem(title: entry.menuTitle,
                                      action: #selector(repaste(_:)),
                                      keyEquivalent: "")
