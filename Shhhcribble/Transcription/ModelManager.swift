@@ -65,7 +65,7 @@ enum ModelManager {
     static var activationMode: ActivationMode {
         get {
             ActivationMode(rawValue: UserDefaults.standard.string(forKey: activationModeKey) ?? "")
-                ?? .pushToTalk
+                ?? .toggle
         }
         set { UserDefaults.standard.set(newValue.rawValue, forKey: activationModeKey) }
     }
