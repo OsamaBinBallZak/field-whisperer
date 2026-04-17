@@ -179,16 +179,15 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("( ᴗ ͜ʖ ᴗ)  psst… this app was handcrafted")
+                HStack(alignment: .bottom, spacing: 12) {
+                    Text("this app was crafted by a human named Hendri with chief vibes officer Tiuri whispering ideas in his ear. both humans. probably.")
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundColor(.secondary)
-                    Text("        by a human named Hendri.")
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 12)
+                    Text("( ᴗ ͜ʖ ᴗ)")
                         .font(.system(size: 11, design: .monospaced))
-                        .foregroundColor(.secondary)
-                    Text("        yes, a real one. probably.")
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundColor(.secondary.opacity(0.5))
+                        .foregroundColor(.secondary.opacity(0.7))
                 }
                 .padding(.top, 2)
             }
