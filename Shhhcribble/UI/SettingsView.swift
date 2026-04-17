@@ -28,6 +28,7 @@ struct SettingsView: View {
                     }
                 }
                 .pickerStyle(.radioGroup)
+                .labelsHidden()
                 .onChange(of: selectedModel) { _, newValue in
                     guard newValue != ModelManager.selectedModel else { return }
                     ModelManager.selectedModel = newValue
@@ -66,6 +67,7 @@ struct SettingsView: View {
                     }
                 }
                 .pickerStyle(.radioGroup)
+                .labelsHidden()
                 .onChange(of: selectedHotkeyID) { _, newValue in
                     guard let option = ModelManager.availableHotkeys.first(where: { $0.id == newValue }) else { return }
                     appDelegate.updateHotkey(option)
@@ -87,6 +89,7 @@ struct SettingsView: View {
                     Text("Toggle (tap to start, tap to stop)").tag(ModelManager.ActivationMode.toggle)
                 }
                 .pickerStyle(.radioGroup)
+                .labelsHidden()
                 .onChange(of: activationMode) { _, newValue in
                     ModelManager.activationMode = newValue
                 }
