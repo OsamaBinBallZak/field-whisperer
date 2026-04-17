@@ -71,6 +71,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             menuBarController.flashNotReady()
             return
         }
+
+        // Resolve mic permission BEFORE showing the soundwave panel. On a
+        // fresh install the system prompt is async and blocks audio capture
+        // while visible — showing the "recording" panel during the prompt
+        // would mislead the user into speaking into a dead mic. The fast
+        // path (already authorized) is a synchronous status check so there's
+        // no added latency after first launch.
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .authorized:
+            actuallyBeginRecording()
+
+        case .notDetermined:
+            // First-ever recording on this install. Surface the prompt and
+            // only continue if the user grants access. The state == .idle
+            // re-check after the prompt protects against the user pressing
+            // the hotkey again mid-prompt.
+            let granted = await AVCaptureDevice.requestAccess(for: .audio)
+            guard granted else {
+                print("[Shhhcribble] Microphone permission denied at prompt.")
+                soundwavePanel.showError("Microphone permission denied")
+                return
+            }
+            guard state == .idle else { return }
+            actuallyBeginRecording()
+
+        case .denied, .restricted:
+            print("[Shhhcribble] Microphone permission already denied.")
+            soundwavePanel.showError("Microphone permission denied")
+
+        @unknown default:
+            soundwavePanel.showError("Microphone permission unknown")
+        }
+    }
+
+    /// Actual start sequence once mic permission is confirmed. Split out from
+    /// beginRecording() so the panel and recorder only kick off after the
+    /// permission prompt resolves on fresh installs.
+    private func actuallyBeginRecording() {
         print("[Shhhcribble] Recording started")
         state = .recording
         soundwavePanel.show()
@@ -108,11 +146,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func endRecording() async {
         guard state == .recording else { return }
-        stopLiveTranscription()
 
-        // Audible confirmation the moment the hotkey releases — fires regardless
-        // of whether transcription later produces text, errors, or comes back empty.
+        // Fire the scribble sound the instant the user releases / second-taps,
+        // before transcription runs. Gives immediate audible confirmation
+        // even when the recording transcribes to nothing (empty speech,
+        // breath-only). This is the single source of audible feedback per
+        // recording — see SoundwavePanel.playCompletionSound() docs.
         soundwavePanel.playCompletionSound()
+
+        stopLiveTranscription()
 
         state = .transcribing
         soundwavePanel.showTranscribing()
