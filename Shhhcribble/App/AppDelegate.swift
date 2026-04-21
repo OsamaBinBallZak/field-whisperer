@@ -19,6 +19,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var liveTranscriptionTask: Task<Void, Never>?
     private let liveTranscriptionInterval: TimeInterval = 3.0
 
+    /// Global keyDown observer that catches Escape while recording so the user
+    /// can cancel without pasting. Only active during .recording state.
+    private var escapeMonitor: Any?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         print("[Shhhcribble] App launched.")
 
@@ -122,6 +126,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         )
         startLiveTranscription()
+        startEscapeMonitor()
+    }
+
+    /// Cancels the current recording: stops audio, discards samples, hides the
+    /// panel, and returns to idle without pasting anything.
+    private func cancelRecording() {
+        guard state == .recording else { return }
+        print("[Shhhcribble] Recording cancelled (Escape)")
+        stopLiveTranscription()
+        stopEscapeMonitor()
+        _ = audioRecorder.stop()
+        menuBarController.setRecordingIndicator(active: false)
+        soundwavePanel.hide()
+        state = .idle
+    }
+
+    private func startEscapeMonitor() {
+        stopEscapeMonitor()
+        // Escape keyCode = 53. A global monitor fires for events delivered to
+        // other apps, letting us observe Escape while the nonactivating panel
+        // can't receive key events itself.
+        escapeMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard event.keyCode == 53 else { return }
+            Task { @MainActor in self?.cancelRecording() }
+        }
+    }
+
+    private func stopEscapeMonitor() {
+        if let monitor = escapeMonitor {
+            NSEvent.removeMonitor(monitor)
+            escapeMonitor = nil
+        }
     }
 
     /// Toggle activation: tap once to start recording, tap again to stop & paste.
@@ -138,6 +174,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func handleAudioError(_ message: String) {
         print("[Shhhcribble] Audio error: \(message)")
         stopLiveTranscription()
+        stopEscapeMonitor()
         _ = audioRecorder.stop()
         menuBarController.setRecordingIndicator(active: false)
         soundwavePanel.showError(message)
@@ -146,6 +183,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func endRecording() async {
         guard state == .recording else { return }
+        stopEscapeMonitor()
 
         // Fire the scribble sound the instant the user releases / second-taps,
         // before transcription runs. Gives immediate audible confirmation
