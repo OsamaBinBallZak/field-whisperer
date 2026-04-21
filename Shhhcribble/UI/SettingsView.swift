@@ -173,7 +173,7 @@ struct SettingsView: View {
                 HStack {
                     Text("Shhhcribble").fontWeight(.medium)
                     Spacer()
-                    Text("v1.0").foregroundColor(.secondary)
+                    Text(appVersionString).foregroundColor(.secondary)
                 }
                 Text(aboutShortcutHint)
                     .font(.caption)
@@ -196,6 +196,14 @@ struct SettingsView: View {
         .frame(width: 440)
         .onAppear { checkPermissions() }
         .onReceive(permissionTimer) { _ in checkPermissions() }
+    }
+
+    /// Single source of truth for the displayed version. Reads
+    /// CFBundleShortVersionString from Info.plist so bumping the plist
+    /// is all that's required at release time.
+    private var appVersionString: String {
+        let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        return "v\(v)"
     }
 
     private var aboutShortcutHint: String {
