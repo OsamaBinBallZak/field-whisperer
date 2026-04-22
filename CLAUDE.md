@@ -73,6 +73,13 @@ Survives relaunch via JSON-encoded `[TranscriptionEntry]` under `"transcriptionH
 ### Hidden picker labels in Settings
 Section headers already name each setting; inline `Picker("Model", ...)` labels duplicated them visually. Every picker uses `.labelsHidden()`.
 
+### Escape-to-cancel during recording
+**Why:** users sometimes start a recording and want to bail without pasting. An `NSEvent` global keyDown monitor is installed only while `state == .recording` (see `AppDelegate.escapeMonitor`). On Escape it tears down the recording, skips transcription, and returns the panel to idle. Monitor is removed on state exit to avoid swallowing Escape elsewhere.
+
+### Clipboard restore is conditional on AX success
+**Why:** we save the user's prior clipboard and restore it ~2 s after the transcription lands — but only on the `.accessibilityInserted` path (`AXUIElementSetAttributeValue` returned `.success`, text is synchronously committed to the focused control). The Cmd+V / AX-fail paths return `.pastedViaKeyboard`, which is a *weak* signal (the event posted, but the app might have silently dropped it — Electron hosts routinely do). On those paths we intentionally leave the transcription on the clipboard as a recovery net, so the user can manually ⌘V if auto-paste didn't land. An `NSPasteboard.changeCount` guard around the restore prevents clobbering anything the user copied during the 2 s window. Do not "simplify" this into unconditional restore — that reintroduces the failure mode where a silently-dropped Cmd+V leaves the user with no transcription anywhere.
+
+
 ---
 
 ## Lessons learned (anti-patterns to avoid)
