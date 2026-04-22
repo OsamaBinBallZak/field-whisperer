@@ -7,6 +7,7 @@ enum RecordingUIState: Equatable {
     case recording
     case transcribing
     case copied
+    case noResult
     case error(String)
 }
 
@@ -116,6 +117,12 @@ struct SoundwaveView: View {
                             .foregroundColor(.white)
                         Spacer()
 
+                    case .noResult:
+                        Text("No speech detected")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.white.opacity(0.7))
+                        Spacer()
+
                     case .error(let message):
                         Text(message)
                             .font(.system(size: 13, weight: .medium))
@@ -156,9 +163,10 @@ struct SoundwaveView: View {
 
     private var iconName: String {
         switch viewModel.state {
-        case .copied: return "checkmark.circle.fill"
-        case .error:  return "exclamationmark.triangle.fill"
-        default:      return "mic.fill"
+        case .copied:   return "checkmark.circle.fill"
+        case .noResult: return "waveform.slash"
+        case .error:    return "exclamationmark.triangle.fill"
+        default:        return "mic.fill"
         }
     }
 
@@ -175,6 +183,7 @@ struct SoundwaveView: View {
         case .recording:    return Color(red: 0.25, green: 0.55, blue: 1.0)
         case .transcribing: return .orange
         case .copied:       return .green
+        case .noResult:     return .white.opacity(0.3)
         case .error:        return Color(red: 1.0, green: 0.45, blue: 0.45)
         case .hidden:       return .clear
         }

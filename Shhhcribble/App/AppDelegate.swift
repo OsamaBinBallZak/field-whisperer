@@ -206,6 +206,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         print("[Shhhcribble] Captured \(samples.count) samples (~\(String(format: "%.1f", Double(samples.count)/16000))s)")
 
         var textToInsert: String? = nil
+        var transcriptionFailed = false
         do {
             let text = try await transcriptionEngine.transcribe(audioSamples: samples)
             var trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -215,33 +216,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             textToInsert = trimmed.isEmpty ? nil : trimmed
         } catch {
             print("[Shhhcribble] ❌ Transcription error: \(error.localizedDescription)")
+            transcriptionFailed = true
         }
 
-        guard let text = textToInsert else {
-            soundwavePanel.hide()
-            state = .idle
-            return
+        if let text = textToInsert {
+            // Save to history and refresh menu before inserting
+            ModelManager.addToHistory(text)
+            menuBarController.rebuildMenu()
+
+            print("[Shhhcribble] Inserting: \"\(text.prefix(80))\"")
+
+            // Panel stays visible (nonactivating — target app keeps focus).
+            // Small delay lets any focus changes settle before the insert.
+            try? await Task.sleep(for: .milliseconds(150))
+
+            // Capture the target PID NOW (not at record-start) so the paste
+            // goes to whatever field the user has most recently focused —
+            // letting them start recording in Slack and finish by pasting
+            // into Notes.
+            let targetPid = NSWorkspace.shared.frontmostApplication?.processIdentifier
+
+            soundwavePanel.showCopied()
+            let _ = textInserter.insert(text: text, targetPid: targetPid)
+        } else if transcriptionFailed {
+            soundwavePanel.showError("Transcription failed")
+        } else {
+            soundwavePanel.showNoResult()
         }
-
-        // Save to history and refresh menu before inserting
-        ModelManager.addToHistory(text)
-        menuBarController.rebuildMenu()
-
-        print("[Shhhcribble] Inserting: \"\(text.prefix(80))\"")
-
-        // Panel stays visible (nonactivating — target app keeps focus).
-        // Small delay lets any focus changes settle before the insert.
-        try? await Task.sleep(for: .milliseconds(150))
-
-        // Capture the target PID NOW (not at record-start) so the paste goes
-        // to whatever field the user has most recently focused — letting them
-        // start recording in Slack and finish by pasting into Notes.
-        let targetPid = NSWorkspace.shared.frontmostApplication?.processIdentifier
-
-        // Fire sound and paste simultaneously — player is pre-buffered so
-        // showCopied() plays instantly, and postToPid is near-instantaneous.
-        soundwavePanel.showCopied()
-        let _ = textInserter.insert(text: text, targetPid: targetPid)
 
         state = .idle
     }

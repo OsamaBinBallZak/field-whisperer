@@ -61,8 +61,8 @@ Shhhcribble/
 ### Activation mode defaults to Toggle
 **Why:** Push-to-talk was tiring for longer dictations; tap-to-start-tap-to-stop is lower-effort. Users can switch back in Settings.
 
-### Snappy-close UX (v2.1.7)
-On hotkey release, `endRecording()` fires the scribble sound AND jumps straight to "Copied!" — skipping the "Transcribing…" dots. Transcription still runs in the background; paste happens whenever it finishes. Trade-off accepted: empty transcriptions show an optimistic "Copied!" confirmation. The alternative (wait for transcription before confirming) felt sluggish.
+### Snappy-close UX (v2.1.7) + honest no-result correction
+On hotkey release, `endRecording()` fires the scribble sound AND jumps straight to "Copied!" — skipping the "Transcribing…" dots. Transcription still runs in the background; paste happens whenever it finishes. The optimism is still the right default (waiting for transcription before any confirmation felt sluggish), but the pill is now *corrected after the fact* when the result proves the optimism wrong: empty transcriptions downgrade to a neutral `.noResult` state ("No speech detected", muted `waveform.slash` icon, 1.6 s auto-hide) via `SoundwavePanel.showNoResult()`; caught transcription errors route to `showError("Transcription failed")`. Both re-present the panel if `showCopied`'s hide timer already fired. Copy was chosen to read as "we didn't hear you" rather than an error — deliberately distinct from the red `.error` state reserved for real failures (permission denied, no mic detected).
 
 ### About version reads from Info.plist
 Single source of truth at release time. Bump `CFBundleShortVersionString` only; the About panel reflects it automatically.

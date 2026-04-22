@@ -104,6 +104,35 @@ final class SoundwavePanel: NSPanel {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.6, execute: item)
     }
 
+    /// Replace a previous `.copied` state with a neutral "No speech detected"
+    /// acknowledgement. Used when transcription came back empty — corrects
+    /// the optimistic "Copied!" shown at hotkey release. Re-presents the
+    /// panel if it's already faded (transcription took >1.6s).
+    func showNoResult() {
+        pendingHide?.cancel()
+
+        if !viewModel.isVisible {
+            positionAtTopCenter()
+            viewModel.isVisible = false
+            orderFront(nil)
+            DispatchQueue.main.async {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
+                    self.viewModel.isVisible = true
+                }
+            }
+        }
+
+        withAnimation(.easeInOut(duration: 0.25)) {
+            viewModel.state    = .noResult
+            viewModel.liveText = ""
+        }
+
+        let item = DispatchWorkItem { [weak self] in self?.hide() }
+        pendingHide = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6, execute: item)
+    }
+
+
     /// Show a transient error message in the pill (e.g. "No microphone detected").
     /// Presents the panel if hidden, then auto-hides after 2s.
     func showError(_ message: String) {
