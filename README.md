@@ -11,9 +11,12 @@ Powered by [NVIDIA Parakeet V3](https://huggingface.co/FluidInference/parakeet-t
 
 - **⌥Space push-to-talk** — global hotkey, works in any app, no Input Monitoring required
 - **Toggle mode** — tap to start, tap to stop (great for long recordings)
-- **Auto-paste** — text goes directly into the focused field (native apps via Accessibility, Electron apps via Cmd+V, clipboard as fallback)
-- **Parakeet V3** — ~10x faster than Whisper, better accuracy, no silence hallucination, 25 languages
-- **Floating soundwave panel** — shows recording state, live transcription preview, and completion feedback
+- **Auto-paste** — text goes directly into the focused field (native apps via Accessibility, everything else via ⌘V, clipboard as fallback)
+- **Clipboard restore** — your prior clipboard is restored ~2 s after paste, so transcribing doesn't clobber the URL / code snippet you had copied
+- **Escape-to-cancel** — press Escape mid-recording to abort without pasting
+- **Parakeet V3** — ~10× faster than Whisper, better accuracy, no silence hallucination, 25 languages
+- **Floating soundwave panel** — recording state, live transcription preview, "Copied!" / "No speech detected" feedback
+- **Transcription history** — last 10 transcriptions accessible from the menu bar, persist across launches
 - **Menu bar only** — no Dock icon
 - **Filler word filter** — optionally strips "um", "uh", "hmm" from transcriptions
 
@@ -22,6 +25,8 @@ Powered by [NVIDIA Parakeet V3](https://huggingface.co/FluidInference/parakeet-t
 ## Install
 
 ### From DMG
+
+Download the latest `Shhhcribble.dmg` from the [Releases page](https://github.com/itsHendri/Shhcribble/releases).
 
 1. Open the `.dmg`, drag **Shhhcribble** to **Applications**
 2. **Right-click → Open** on first launch (bypasses Gatekeeper — only needed once)
@@ -33,7 +38,7 @@ Powered by [NVIDIA Parakeet V3](https://huggingface.co/FluidInference/parakeet-t
 ### Build from source
 
 ```bash
-git clone https://github.com/OsamaBinBallZak/shhhcribble.git
+git clone https://github.com/itsHendri/Shhcribble.git shhhcribble
 cd shhhcribble
 open Shhhcribble.xcodeproj
 ```
@@ -75,9 +80,9 @@ Click the menu bar icon → **Settings…**
 | Permission | Required? | Why |
 |---|---|---|
 | **Microphone** | Yes | Prompted automatically |
-| **Accessibility** | Optional | Enables direct text insertion; without it, text goes to clipboard |
+| **Accessibility** | Optional | Enables direct text insertion and Escape-to-cancel; without it, text goes via ⌘V and Escape does nothing |
 
-> After rebuilding in Xcode, re-grant Accessibility: remove Shhhcribble from the list, then re-add it.
+> After rebuilding in Xcode, re-grant Accessibility: remove Shhhcribble from the list, then re-add it. AX is tied to the binary signature, which changes on every clean build.
 
 ---
 
@@ -104,4 +109,4 @@ Produces **Shhhcribble.dmg** on your Desktop. Recipients right-click → Open on
 
 ---
 
-*Originally created by [Hendri](https://github.com/itsHendri/shhhcribble). This fork replaces WhisperKit with Parakeet V3 for faster transcription.*
+*Built by [Hendri](https://github.com/itsHendri). Uses [FluidAudio](https://github.com/FluidInference/FluidAudio) and NVIDIA Parakeet V3 for on-device transcription.*
