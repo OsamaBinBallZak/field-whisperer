@@ -44,7 +44,7 @@ final class HotKeyMonitor {
         )
 
         guard status == noErr else {
-            print("[FieldWhisperer] ❌ InstallEventHandler failed: \(status)")
+            print("[Shhhcribble] ❌ InstallEventHandler failed: \(status)")
             Unmanaged<HotKeyMonitor>.fromOpaque(selfPtr).release()
             return
         }
@@ -82,9 +82,9 @@ final class HotKeyMonitor {
         let label = option?.label ?? "custom"
 
         if regStatus == noErr {
-            print("[FieldWhisperer] ✅ Hotkey registered: \(label)")
+            print("[Shhhcribble] ✅ Hotkey registered: \(label)")
         } else {
-            print("[FieldWhisperer] ❌ RegisterEventHotKey failed (\(regStatus)) for \(label). " +
+            print("[Shhhcribble] ❌ RegisterEventHotKey failed (\(regStatus)) for \(label). " +
                   "Another app may own this combo.")
         }
     }
