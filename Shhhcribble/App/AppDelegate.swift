@@ -110,6 +110,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard state == .recording else { return }
         stopLiveTranscription()
 
+        // Audible confirmation the moment the hotkey releases — fires regardless
+        // of whether transcription later produces text, errors, or comes back empty.
+        soundwavePanel.playCompletionSound()
+
         state = .transcribing
         soundwavePanel.showTranscribing()
         menuBarController.setRecordingIndicator(active: false)

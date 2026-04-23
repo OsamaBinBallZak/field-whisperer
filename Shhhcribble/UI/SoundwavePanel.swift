@@ -86,12 +86,13 @@ final class SoundwavePanel: NSPanel {
         }
     }
 
-    func showCopied() {
-        pendingHide?.cancel()
-
-        // Play first — player is pre-buffered so this fires with no latency
+    func playCompletionSound() {
         completionPlayer?.currentTime = 0
         completionPlayer?.play()
+    }
+
+    func showCopied() {
+        pendingHide?.cancel()
 
         withAnimation(.easeInOut(duration: 0.35)) {
             viewModel.state    = .copied
