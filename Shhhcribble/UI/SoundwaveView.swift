@@ -5,7 +5,6 @@ import SwiftUI
 enum RecordingUIState: Equatable {
     case hidden
     case recording
-    case transcribing
     case copied
     case noResult
     case error(String)
@@ -102,15 +101,6 @@ struct SoundwaveView: View {
                         ScrollingLiveText(text: viewModel.liveText)
                             .padding(.horizontal, 8)
 
-                    case .transcribing:
-                        HStack(spacing: 8) {
-                            Text("Transcribing")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(.white.opacity(0.55))
-                            TranscribingDotsView()
-                        }
-                        Spacer()
-
                     case .copied:
                         Text("Copied! ⌘V to paste")
                             .font(.system(size: 13, weight: .medium))
@@ -181,7 +171,6 @@ struct SoundwaveView: View {
     private var dotColor: Color {
         switch viewModel.state {
         case .recording:    return Color(red: 0.25, green: 0.55, blue: 1.0)
-        case .transcribing: return .orange
         case .copied:       return .green
         case .noResult:     return .white.opacity(0.3)
         case .error:        return Color(red: 1.0, green: 0.45, blue: 0.45)
@@ -253,26 +242,6 @@ struct AnimatedDot: View {
         withAnimation(.linear(duration: 2.8).repeatForever(autoreverses: false)) {
             shimmerX = 1.6
         }
-    }
-}
-
-// MARK: - Transcribing dots
-
-/// Three small circles that bounce in a staggered wave — replaces the static ProgressView.
-struct TranscribingDotsView: View {
-    @State private var phase: Double = 0
-    private let timer = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
-
-    var body: some View {
-        HStack(spacing: 5) {
-            ForEach(0..<3, id: \.self) { i in
-                Circle()
-                    .fill(Color.white.opacity(0.45))
-                    .frame(width: 5, height: 5)
-                    .offset(y: CGFloat(-sin(phase + Double(i) * .pi * 2 / 3) * 4))
-            }
-        }
-        .onReceive(timer) { _ in phase += 0.14 }
     }
 }
 

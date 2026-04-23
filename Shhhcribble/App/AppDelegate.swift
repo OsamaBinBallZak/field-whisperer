@@ -12,6 +12,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuBarController: MenuBarController!
     private var settingsWindowController: SettingsWindowController?
 
+    /// Internal recording state machine. `.transcribing` is a brief window
+    /// between hotkey release and transcription completion — never surfaced in
+    /// the pill (the UI flips optimistically to `.copied` on release); its
+    /// only job is to block hotkey re-entry while the engine is still working.
     private enum AppState { case idle, recording, transcribing }
     private var state: AppState = .idle
 

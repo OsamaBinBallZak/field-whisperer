@@ -79,13 +79,6 @@ final class SoundwavePanel: NSPanel {
         }
     }
 
-    func showTranscribing() {
-        withAnimation(.easeInOut(duration: 0.35)) {
-            viewModel.state    = .transcribing
-            viewModel.liveText = ""
-        }
-    }
-
     func playCompletionSound() {
         completionPlayer?.currentTime = 0
         completionPlayer?.play()
