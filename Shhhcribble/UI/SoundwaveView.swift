@@ -29,42 +29,33 @@ final class TypingViewModel: ObservableObject {
     private var targetText: String = ""
     private var typingTask: Task<Void, Never>?
 
-    /// Characters of recent speech kept in the pan window. The 70 ms/char reveal
-    /// can only surface ~14 chars/s, so on long recordings the full transcript
-    /// falls many seconds behind reality. Trimming to a trailing window keeps the
-    /// panning text tracking the tail of what was just said rather than replaying
-    /// minutes-old buffer content.
-    private static let tailWindow = 80
-
     func updateTarget(_ newText: String) {
-        let windowed = newText.count > Self.tailWindow
-            ? String(newText.suffix(Self.tailWindow))
-            : newText
-
-        // First update of the recording: run the typewriter reveal as a one-
-        // off intro animation. Every subsequent update snaps directly to the
-        // latest tail so the on-screen words track recent speech without a
-        // visible retype. The ScrollingLiveText view's trailing-anchor auto-
-        // scroll keeps the newest characters visible at the right edge.
-        if displayedText.isEmpty {
-            targetText = windowed
-            typingTask?.cancel()
-            typingTask = Task { [weak self] in
-                while !Task.isCancelled {
-                    guard let self else { return }
-                    let current = self.displayedText
-                    let target  = self.targetText
-                    guard current.count < target.count else { break }
-                    let nextIdx = target.index(target.startIndex, offsetBy: current.count)
-                    self.displayedText = String(target[target.startIndex...nextIdx])
-                    try? await Task.sleep(for: .milliseconds(70))
-                }
-            }
+        if newText.hasPrefix(displayedText) {
+            // New text simply extends what's already displayed — continue typing
+            targetText = newText
         } else {
-            typingTask?.cancel()
-            typingTask = nil
-            targetText = windowed
-            displayedText = windowed
+            // Text changed (engine revised earlier words) — rewind to common prefix
+            var commonLen = 0
+            let dChars = Array(displayedText)
+            let nChars = Array(newText)
+            for i in 0..<min(dChars.count, nChars.count) {
+                if dChars[i] == nChars[i] { commonLen = i + 1 } else { break }
+            }
+            displayedText = String(displayedText.prefix(commonLen))
+            targetText = newText
+        }
+
+        typingTask?.cancel()
+        typingTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self else { return }
+                let current = self.displayedText
+                let target  = self.targetText
+                guard current.count < target.count else { break }
+                let nextIdx = target.index(target.startIndex, offsetBy: current.count)
+                self.displayedText = String(target[target.startIndex...nextIdx])
+                try? await Task.sleep(for: .milliseconds(70))
+            }
         }
     }
 
