@@ -29,20 +29,32 @@ final class TypingViewModel: ObservableObject {
     private var targetText: String = ""
     private var typingTask: Task<Void, Never>?
 
+    /// Characters of recent speech kept in the pan window. The 70 ms/char reveal
+    /// can only surface ~14 chars/s, so on long recordings the full transcript
+    /// falls many seconds behind reality. Trimming to a trailing window keeps the
+    /// panning text tracking the tail of what was just said rather than replaying
+    /// minutes-old buffer content.
+    private static let tailWindow = 80
+
     func updateTarget(_ newText: String) {
-        if newText.hasPrefix(displayedText) {
+        let windowed = newText.count > Self.tailWindow
+            ? String(newText.suffix(Self.tailWindow))
+            : newText
+
+        if windowed.hasPrefix(displayedText) {
             // New text simply extends what's already displayed — continue typing
-            targetText = newText
+            targetText = windowed
         } else {
-            // Text changed (WhisperKit revised earlier words) — rewind to common prefix
+            // Text changed (engine revised earlier words, or tail window advanced
+            // past what was already displayed) — rewind to common prefix.
             var commonLen = 0
             let dChars = Array(displayedText)
-            let nChars = Array(newText)
+            let nChars = Array(windowed)
             for i in 0..<min(dChars.count, nChars.count) {
                 if dChars[i] == nChars[i] { commonLen = i + 1 } else { break }
             }
             displayedText = String(displayedText.prefix(commonLen))
-            targetText = newText
+            targetText = windowed
         }
 
         typingTask?.cancel()

@@ -101,7 +101,7 @@ final class SoundwavePanel: NSPanel {
 
         let item = DispatchWorkItem { [weak self] in self?.hide() }
         pendingHide = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6, execute: item)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: item)
     }
 
     /// Replace a previous `.copied` state with a neutral "No speech detected"
@@ -129,7 +129,7 @@ final class SoundwavePanel: NSPanel {
 
         let item = DispatchWorkItem { [weak self] in self?.hide() }
         pendingHide = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6, execute: item)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: item)
     }
 
 
@@ -158,7 +158,7 @@ final class SoundwavePanel: NSPanel {
 
         let item = DispatchWorkItem { [weak self] in self?.hide() }
         pendingHide = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0, execute: item)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6, execute: item)
     }
 
     func updateLevel(_ level: Float) {
@@ -175,12 +175,12 @@ final class SoundwavePanel: NSPanel {
         pendingHide = nil
 
         // Exit animation: spring back up and shrink — reverse of entry
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) {
+        withAnimation(.spring(response: 0.22, dampingFraction: 0.88)) {
             viewModel.isVisible = false
         }
 
         // Remove the window after the spring has settled
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
             self?.orderOut(nil)
             MainActor.assumeIsolated {
                 self?.viewModel.state     = .hidden
