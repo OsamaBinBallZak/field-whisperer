@@ -43,52 +43,87 @@ Shhhcribble/
     └── shhhcribble-scribble-sound.mp3
 ```
 
-`Distribution/` — packaging + diagnostics (see "Tooling" below).
+`Distribution/` — packaging (`create-dmg.sh`, `set-dmg-layout.py`).
 
 ---
 
 ## Load-bearing decisions (don't relitigate without reading why)
 
-### AudioRecorder: fresh AVAudioEngine per recording
-**Why:** v2.0's warm-engine optimization created route-handling edge cases (Bluetooth toggles, sleep/wake, Continuity Mic re-routing) that couldn't reliably be fixed by layering stale-state detectors. Fresh-per-recording trades 100-200 ms of cold-start latency for bulletproof hardware re-binding. See `AudioRecorder.swift` class doc.
+### AudioRecorder: fresh AVAudioEngine per recording, no voice processing
+**Why:** `stop()` reallocates the engine instance on every call, so `start()` always binds to the current default input device. Hardware re-binding is "free" — a rebooted AirPods reconnect, a Continuity Mic swap, a sleep/wake cycle all heal themselves on the next hotkey press without any explicit listener. Pays ~100–200 ms cold-start per recording for bulletproof lifecycle.
 
-### Voice processing is conditional on Bluetooth
-**Why:** AirPods stay in A2DP (output-only) and the tap silently gets empty buffers unless we flip the input node to AUVoiceIO, which signals voice-capture intent to CoreAudio and triggers HFP activation. But AUVoiceIO's AGC + noise suppression is tuned for close-mic phone-call style — it suppresses normal dictation from a ~50 cm built-in MacBook mic. So: VP on for BT inputs, off for wired/built-in. Check runs on every `startEngine()` so mid-recording device swaps reconfigure.
+`setVoiceProcessingEnabled` is **never** called. Empirically verified on macOS 14+ (confirmed on Tahoe 26, session 2026-04-23): plain HAL I/O delivers AirPods mic audio cleanly at 24 kHz stereo Float32 without any AUVoiceIO opt-in. The historical "AirPods tap is silent without VP" guidance was macOS 13-era and is false today. Do not reintroduce VP-for-Bluetooth as an AirPods fix — doing so ruins AirPods playback, corrupts concurrent calls/music, and generates notification storms that break mid-recording route handling (see Lessons learned).
+
+### AudioRecorder: mid-recording route changes rebuild the engine
+`handleConfigurationChange()` fires on `AVAudioEngineConfigurationChangeNotification`. It tears the tap down, reallocates the engine, and restarts against the new input format, preserving samples across the transition. No debounce. Empirically verified 2026-04-23 that the notification arrives at normal human-speed cadence on a VP-free code path (four events across a 37 s recording with two AirPods↔Mac switches, no burst, no dropouts). If VP is ever reintroduced, the notification storm it generates *will* deadlock this handler — see Deferred features below.
+
+### Transcription pipeline: single batch model + 3 s polling live preview
+One FluidAudio `AsrManager` loaded with Parakeet V3 (~494 MB). Final transcription runs once on `stop()`. The lozenge's live-preview text comes from a `liveTranscriptionTask` in AppDelegate that re-runs the full batch model against the growing sample buffer every 3 seconds. Simpler than a streaming manager and avoids format-assumption bugs on the VP-free AirPods path. Trade-off: live preview lags 1.5–3 s behind the speaker and CPU cost scales with recording length — acceptable for typical sub-30 s usage.
+
+### TextInserter: AX-first, Cmd+V fallback, clipboard restore on both
+1. Snapshot current pasteboard contents.
+2. Write transcription to clipboard (universal failsafe).
+3. Try AX direct insert (`AXUIElementSetAttributeValue` on `kAXSelectedTextAttribute`). Success returns `.accessibilityInserted`.
+4. On AX failure or if `targetPid` is non-Finder, send Cmd+V via `postToPid`. Success returns `.pastedViaKeyboard`.
+5. Both success paths `scheduleClipboardRestore` with a 2 s delay, `NSPasteboard.changeCount`-gated so any manual copy during the window isn't clobbered.
+6. Only `.copiedToClipboard` (no target PID / Finder) leaves transcription on the clipboard indefinitely — no auto-paste was attempted, so the user needs to ⌘V themselves.
+
+The 2 s window is deliberate: gives the user time to visually confirm the paste and to manually ⌘V if the target app silently dropped the Cmd+V event (Electron hosts occasionally do). After that, prior clipboard is restored so URL/code-snippet/phone-number workflows don't get clobbered.
+
+### UI state machine: optimistic `.copied`, no `.transcribing` pill
+On hotkey release, `endRecording()` fires `playCompletionSound()` *and* flips the lozenge straight to `.copied` — no intermediate "Transcribing…" state. The 1 s auto-hide timer starts immediately, so the pill disappears within ~1.3 s regardless of how long the batch transcribe takes. Paste happens silently whenever the engine finishes.
+
+If the result is empty, `showNoResult()` re-presents the pill in a neutral `.noResult` state ("No speech detected", muted `waveform.slash`, 1 s auto-hide) — distinct from the red `.error` state reserved for real failures (transcription threw, permission denied, no mic). Both re-presenters handle the case where the initial hide timer has already fired.
+
+Close timings (post-hotkey-release dwell is ~1.22 s total): `showCopied` and `showNoResult` auto-hide 1.0 s, `showError` 1.6 s, hide spring 0.22 s, `orderOut` 0.3 s.
 
 ### Carbon hotkeys (not CGEventTap)
-**Why:** RegisterEventHotKey doesn't require Input Monitoring permission and is never auto-disabled by macOS. Downside: fixed list of key combos, no arbitrary chords. That's fine.
+`RegisterEventHotKey` doesn't require Input Monitoring permission and is never auto-disabled by macOS. Downside: fixed list of presets, no arbitrary chords. Fine.
+
+### Escape-to-cancel during recording
+Global `NSEvent.addGlobalMonitorForEvents(matching: .keyDown)` installed only while `state == .recording` (see `AppDelegate.escapeMonitor`). Keycode 53 routes to `cancelRecording()` — stops engine, discards samples, hides the panel, skips transcription and paste. Monitor is torn down on end / cancel / error so Escape isn't swallowed elsewhere.
+
+**Requires Accessibility permission to fire.** Global keyboard monitors are gated on AX trust, and `xcodebuild` invalidates AX on every rebuild (new binary signature), so Escape silently stops working after a rebuild until you remove + re-add Shhhcribble in System Settings → Privacy → Accessibility.
 
 ### Activation mode defaults to Toggle
-**Why:** Push-to-talk was tiring for longer dictations; tap-to-start-tap-to-stop is lower-effort. Users can switch back in Settings.
-
-### Snappy-close UX (v2.1.7) + honest no-result correction
-On hotkey release, `endRecording()` fires the scribble sound AND jumps straight to "Copied!" — skipping the "Transcribing…" dots. Transcription still runs in the background; paste happens whenever it finishes. The optimism is still the right default (waiting for transcription before any confirmation felt sluggish), but the pill is now *corrected after the fact* when the result proves the optimism wrong: empty transcriptions downgrade to a neutral `.noResult` state ("No speech detected", muted `waveform.slash` icon, 1.6 s auto-hide) via `SoundwavePanel.showNoResult()`; caught transcription errors route to `showError("Transcription failed")`. Both re-present the panel if `showCopied`'s hide timer already fired. Copy was chosen to read as "we didn't hear you" rather than an error — deliberately distinct from the red `.error` state reserved for real failures (permission denied, no mic detected).
+Push-to-talk is tiring for longer dictations; tap-to-start, tap-to-stop is lower-effort. Fresh installs default to toggle; existing prefs are untouched.
 
 ### About version reads from Info.plist
-Single source of truth at release time. Bump `CFBundleShortVersionString` only; the About panel reflects it automatically.
+`CFBundleShortVersionString` is the single source of truth. Settings → About reads it dynamically; no hardcoded string to bump.
 
 ### History persisted via UserDefaults, cap 10
-Survives relaunch via JSON-encoded `[TranscriptionEntry]` under `"transcriptionHistory"`. Cap chosen for menu readability, not storage.
+Survives relaunch via JSON-encoded `[TranscriptionEntry]` under `"transcriptionHistory"`. Cap chosen for menu readability.
 
 ### Hidden picker labels in Settings
 Section headers already name each setting; inline `Picker("Model", ...)` labels duplicated them visually. Every picker uses `.labelsHidden()`.
 
-### Escape-to-cancel during recording
-**Why:** users sometimes start a recording and want to bail without pasting. An `NSEvent` global keyDown monitor is installed only while `state == .recording` (see `AppDelegate.escapeMonitor`). On Escape it tears down the recording, skips transcription, and returns the panel to idle. Monitor is removed on state exit to avoid swallowing Escape elsewhere.
+---
 
-### Clipboard restore on any successful paste path
-**Why:** we save the user's prior clipboard and restore it ~2 s after the transcription lands on both the `.accessibilityInserted` path (AX-insert synchronously committed) and the `.pastedViaKeyboard` path (Cmd+V via `postToPid`). The 2 s window gives the user time to visually confirm the paste and to manually ⌘V the transcription if the target app silently dropped the event (Electron hosts occasionally do). An `NSPasteboard.changeCount` guard prevents clobbering anything the user copied during the window. Only the `.copiedToClipboard` path (no targetPid / Finder) leaves the transcription on the clipboard indefinitely, since no auto-paste was attempted.
+## Deferred features (skipped during the reboot, documented for future)
 
+These commits exist in the repo's git history (reachable via SHA even after branch cleanup) and represent known-working implementations worth porting if the triggering symptom ever appears.
+
+### Electron AX bypass — commit `9883097`
+Electron hosts (Claude.app, Slack, VS Code, Cursor, Discord, Spotify) expose an `AXTextArea` whose `kAXSelectedTextAttribute` reports as settable and whose `AXUIElementSetAttributeValue` returns `.success` — but the underlying `contenteditable` silently drops the write. The commit adds a static bundle-ID denylist to `TextInserter` that routes known Electron hosts straight to Cmd+V, skipping the lying AX insert. **Port if:** transcription starts silently dropping in any Electron host. Currently works correctly without it (paste tested in Claude.app and Slack on the v1.3.0 line).
+
+### Streaming transcription via Parakeet EOU 160 ms chunks — commit `6509cd7`
+FluidAudio ships a `StreamingEouAsrManager` that produces partial transcripts at ~160 ms cadence instead of the 3 s polling loop. **Port if:** the 3 s live-preview lag becomes a real user complaint. **Requires a careful AirPods canary** — the streaming code was originally authored on top of VP-enabled captures and may have format assumptions (16 kHz mono vs. AirPods' native 24 kHz stereo) that need verifying on our VP-free pipeline. Also adds a second model download (EOU 120 M) and a streaming→batch empty-result fallback (`df37b66`).
+
+### 300 ms `AVAudioEngineConfigurationChange` debounce — commit `fbf7a69`
+Only required deadlock protection **if VP-for-BT is ever reintroduced** — VP toggling during AirPods codec renegotiation generates notification storms that the current single-restart handler cannot coalesce (measured at ~1520 VP error lines in a single session 2026-04-22). On the VP-free path, empirically unnecessary. If VP comes back for any reason, this debounce must come back with it.
 
 ---
 
 ## Lessons learned (anti-patterns to avoid)
 
-- **Never run a second `AudioRecorder` while the main one is idle.** Two engines sharing the voice-processing lifecycle deadlock the main thread on the `AVAudioEngineConfigurationChange` notification handler. Spindump confirmed: `AVAudioEngine dealloc → dispatch_sync_f_slow`. Broke the onboarding mic-test step; deleted it.
-- **Don't bundle features into one big PR.** v2.2.0 merged onboarding + input picker + launch sound + launch-at-login + Escape-to-cancel + brand gradient in one branch. One feature (mic test) caused a system-wide keyboard lockup that took the whole thing down. Since then: one feature per branch, build + verify in isolation, merge incrementally.
-- **Don't touch `AudioRecorder` unless you have to.** v2 spent weeks stabilising this file. Device pinning, custom tap formats, lifecycle changes — all high-risk.
-- **Log before you chase.** `Distribution/collect-logs.sh` caught the spindump that diagnosed the hang. Running it *during* a reproduction is the fastest path to a root cause.
-- **Fresh Xcode builds invalidate Accessibility grants.** Every clean build produces a new binary signature. TCC sees it as a different app. If auto-paste "stops working" after a rebuild, first step: remove Shhhcribble from System Settings → Privacy → Accessibility and re-add it.
+- **Never run a second `AudioRecorder` while the main one is idle.** Two engines sharing the voice-processing lifecycle deadlock the main thread on the `AVAudioEngineConfigurationChange` notification handler. Spindump: `AVAudioEngine dealloc → dispatch_sync_f_slow`. Broke the v2 onboarding mic-test step; deleted it. Onboarding itself is also skipped in v1.3.0.
+- **Never reintroduce the input-device picker.** Abandoned in v2 for lifecycle bugs (users pinned to a disconnected device → silent recordings). Route-change handlers do the right thing automatically.
+- **Never enable voice processing for Bluetooth inputs.** On modern macOS the tap delivers high-quality AirPods audio without any AUVoiceIO opt-in. Forcing VP destroys output audio (music + calls go scratchy), causes trailing-frame loss, and pins AirPods in HFP for 30+ seconds after recording ends. Historical CLAUDE.md guidance to the contrary is macOS 13-era and wrong on macOS 14+. Confirmed 2026-04-22 after a full day of experiments.
+- **Never keep the engine warm across recordings.** Warm-engine-within-transport pins AirPods in HFP indefinitely, turning the app into a continuous Bluetooth microphone session. Fresh-per-recording is the load-bearing pattern; `stop()` must reallocate `engine = AVAudioEngine()`. Confirmed via reproducible user test 2026-04-22.
+- **Never pre-allocate a reusable `AVAudioPCMBuffer` sized from input-format-at-prepare-time.** On AirPods' variable stereo buffers, the pre-sized buffer silently truncates — transcription comes back with trailing words clipped. Allocate per-callback from `buffer.frameLength * ratio`.
+- **Don't bundle features into one big PR.** The v2.2.0 "onboarding + input picker + launch sound + launch-at-login + Escape-to-cancel + brand gradient" merge caused a system-wide keyboard lockup that took the whole thing down. One feature per branch, build + verify in isolation.
+- **Don't touch `AudioRecorder` unless you have to.** This file has been the single point of failure for every AirPods-related incident. Device pinning, custom tap formats, lifecycle changes — all high-risk. If you're reading this before editing it, you should probably not be editing it.
+- **Fresh Xcode builds invalidate Accessibility grants.** Every clean build produces a new binary signature; TCC treats it as a different app. If Escape-to-cancel or auto-paste "stops working" after a rebuild, first step: remove Shhhcribble from System Settings → Privacy → Accessibility and re-add the freshly built binary.
 
 ---
 
@@ -108,40 +143,25 @@ Section headers already name each setting; inline `Picker("Model", ...)` labels 
 
 1. Bump `CFBundleShortVersionString` in `Shhhcribble/Resources/Info.plist` (semver major.minor.patch).
 2. Bump `CFBundleVersion` (monotonic integer).
-3. Update README "What's new" if user-facing changes.
-4. Verify with `xcodebuild -scheme Shhhcribble -configuration Debug build`.
-5. Smoke test in Xcode (⌘R): record → paste, AirPods still work, Settings renders.
-6. `bash Distribution/create-dmg.sh` → `~/Desktop/Shhhcribble.dmg`.
-7. Commit: `Bump version to X.Y.Z`.
-8. Tag: `git tag vX.Y.Z-stable`.
-9. Push tag only when ready for external distribution.
+3. Verify with `xcodebuild -scheme Shhhcribble -configuration Debug build`.
+4. Smoke test: record on AirPods with music playing → transcript lands, music stays clean. Settings → About shows the new version.
+5. `bash Distribution/create-dmg.sh` → `~/Desktop/Shhhcribble.dmg`.
+6. Commit: `Bump version to X.Y.Z`.
 
----
-
-## Tooling
-
-- **`Distribution/create-dmg.sh`** — builds Release + ad-hoc signs + packages drag-to-Applications DMG on the desktop.
-- **`Distribution/set-dmg-layout.py`** — called by create-dmg.sh to position the app icon and Applications alias in the DMG window.
-- **`Distribution/collect-logs.sh`** — diagnostic bundler. Call with `--keep N` to cap retained bundles (default 5), `--prune` to clean up without collecting.
-
-Logs land in `~/shhhcribble-logs/<YYYYMMDD-HHMMSS>/`.
+Releases are not tagged on GitHub (stopped as of v1.3.0 — tags created repo noise for no distribution benefit).
 
 ---
 
 ## Branches
 
-- **`shhhcribble/v2`** — canonical production line (remote). Every shipped version tagged as `vX.Y.Z-stable`.
-- **`claude/v2-plus-onboarding`** — current working branch. Based on v2.1.8 + incremental additions.
-- **`backup/pre-revert-2.2.0`** — local snapshot of the failed v2.2.0 experiment (onboarding + input picker + launch sound bundled). Kept for cherry-picking individual features back one-by-one.
-
-Avoid pushing work-in-progress branches to `origin` without explicit approval.
+One branch: `shhhcribble/main`. Push work directly; no v2-line tag churn, no experimental branches kept around on origin. If a future feature needs isolated experimentation, branch locally from `main`, merge when stable, delete the local branch. Don't push WIP branches to origin without a reason.
 
 ---
 
 ## When adding a feature
 
-1. Branch off `shhhcribble/v2` (not off `claude/v2-plus-onboarding` unless the new feature genuinely depends on something already there).
+1. Branch off `shhhcribble/main` locally.
 2. Keep scope small — one feature per branch.
-3. Build + verify + smoke-test before committing anything else on top.
+3. Build + verify + smoke-test with AirPods + music playing before committing anything else on top.
 4. Update CLAUDE.md when the change introduces a new load-bearing decision or pref key.
-5. Run `collect-logs.sh` if anything audio-related misbehaves during verification.
+5. Merge to `main`, delete the feature branch.
