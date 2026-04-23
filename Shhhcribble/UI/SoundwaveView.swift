@@ -41,33 +41,30 @@ final class TypingViewModel: ObservableObject {
             ? String(newText.suffix(Self.tailWindow))
             : newText
 
-        if windowed.hasPrefix(displayedText) {
-            // New text simply extends what's already displayed — continue typing
+        // First update of the recording: run the typewriter reveal as a one-
+        // off intro animation. Every subsequent update snaps directly to the
+        // latest tail so the on-screen words track recent speech without a
+        // visible retype. The ScrollingLiveText view's trailing-anchor auto-
+        // scroll keeps the newest characters visible at the right edge.
+        if displayedText.isEmpty {
             targetText = windowed
+            typingTask?.cancel()
+            typingTask = Task { [weak self] in
+                while !Task.isCancelled {
+                    guard let self else { return }
+                    let current = self.displayedText
+                    let target  = self.targetText
+                    guard current.count < target.count else { break }
+                    let nextIdx = target.index(target.startIndex, offsetBy: current.count)
+                    self.displayedText = String(target[target.startIndex...nextIdx])
+                    try? await Task.sleep(for: .milliseconds(70))
+                }
+            }
         } else {
-            // Text changed (engine revised earlier words, or tail window advanced
-            // past what was already displayed) — rewind to common prefix.
-            var commonLen = 0
-            let dChars = Array(displayedText)
-            let nChars = Array(windowed)
-            for i in 0..<min(dChars.count, nChars.count) {
-                if dChars[i] == nChars[i] { commonLen = i + 1 } else { break }
-            }
-            displayedText = String(displayedText.prefix(commonLen))
+            typingTask?.cancel()
+            typingTask = nil
             targetText = windowed
-        }
-
-        typingTask?.cancel()
-        typingTask = Task { [weak self] in
-            while !Task.isCancelled {
-                guard let self else { return }
-                let current = self.displayedText
-                let target  = self.targetText
-                guard current.count < target.count else { break }
-                let nextIdx = target.index(target.startIndex, offsetBy: current.count)
-                self.displayedText = String(target[target.startIndex...nextIdx])
-                try? await Task.sleep(for: .milliseconds(70))
-            }
+            displayedText = windowed
         }
     }
 

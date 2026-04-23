@@ -195,8 +195,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         stopLiveTranscription()
 
         state = .transcribing
-        soundwavePanel.showTranscribing()
         menuBarController.setRecordingIndicator(active: false)
+
+        // Optimistic close: flip the pill to "Copied!" the instant the user
+        // releases, before transcription runs. The 1 s auto-hide timer starts
+        // now, so the lozenge disappears quickly regardless of how long batch
+        // transcription takes. If the result turns out empty or errors,
+        // showNoResult / showError re-present the pill with the corrected
+        // state (they handle the case where the hide timer already fired).
+        soundwavePanel.showCopied()
 
         // Keep recording for a short tail so the last word isn't clipped.
         // Speech typically trails 200-400ms after the speaker "finishes".
@@ -236,7 +243,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // into Notes.
             let targetPid = NSWorkspace.shared.frontmostApplication?.processIdentifier
 
-            soundwavePanel.showCopied()
+            // showCopied was already fired optimistically at release — just paste.
             let _ = textInserter.insert(text: text, targetPid: targetPid)
         } else if transcriptionFailed {
             soundwavePanel.showError("Transcription failed")
