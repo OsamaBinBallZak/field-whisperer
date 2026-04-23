@@ -19,9 +19,10 @@ enum InsertionResult {
 /// 4. Send Cmd+V via `postToPid` — universal fallback for apps where AX insert
 ///    fails or isn't supported (Slack, Claude.app, browsers, Electron apps).
 ///    Skipped only when the target is Finder/Desktop (would cause a pop sound).
-///    **No clipboard restore on this path** — Cmd+V success is a weak signal
-///    (the event posted, not necessarily processed), so the transcription
-///    stays on the clipboard as a recovery net if auto-paste didn't land.
+///    Also schedules the 2 s clipboard restore: user gets a 2 s window to
+///    visually confirm the paste landed or to ⌘V manually if it didn't.
+///    After that, prior clipboard contents are restored (changeCount-gated,
+///    so user copies during the window are preserved).
 /// 5. Text is already on clipboard — user can ⌘V manually.
 final class TextInserter {
 
@@ -58,11 +59,12 @@ final class TextInserter {
         // an unhandled paste (desktop/icon selection with nothing to paste into).
         if let pid = targetPid, !isFinderPid(pid), simulateCmdV(targetPid: pid) {
             print("[Shhhcribble] ✅ Pasted via Cmd+V to PID \(pid)")
-            // Intentionally NO restore here: postToPid success just means the
-            // event was queued, not that the app actually processed the paste.
-            // Electron and other weird hosts can silently drop it. Leave the
-            // transcription on the clipboard so the user can recover via ⌘V
-            // if auto-paste didn't land.
+            // 2 s window lets the user visually confirm the paste landed or
+            // ⌘V manually if the target app silently dropped the event. After
+            // that, restore prior clipboard contents — changeCount-gated so
+            // any manual copy inside the window is preserved.
+            scheduleClipboardRestore(priorItems: priorItems,
+                                     markerChangeCount: postWriteChangeCount)
             return .pastedViaKeyboard
         }
 
