@@ -9,6 +9,7 @@ struct SettingsView: View {
     @State private var selectedModel:        String = ModelManager.selectedModel
     @State private var selectedHotkeyID:    String = ModelManager.selectedHotkeyID
     @State private var fillerFilterEnabled: Bool   = ModelManager.fillerFilterEnabled
+    @State private var pauseMusicEnabled:   Bool   = ModelManager.pauseMusicEnabled
     @State private var activationMode:      ModelManager.ActivationMode = ModelManager.activationMode
 
     @State private var axGranted        = false
@@ -108,12 +109,20 @@ struct SettingsView: View {
                         ModelManager.fillerFilterEnabled = newValue
                     }
 
+                Toggle("Pause music while recording", isOn: $pauseMusicEnabled)
+                    .onChange(of: pauseMusicEnabled) { _, newValue in
+                        ModelManager.pauseMusicEnabled = newValue
+                    }
+
             } header: {
                 Text("Options")
             } footer: {
-                Text("Removes \"um\", \"uh\", \"hmm\" and similar filler words from transcriptions.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Removes \"um\", \"uh\", \"hmm\" and similar filler words from transcriptions.")
+                    Text("Pauses Spotify, YouTube, Apple Music, podcasts — anything currently playing — while you dictate, then resumes it when recording ends. Won't start music if nothing was playing.")
+                }
+                .font(.caption)
+                .foregroundColor(.secondary)
             }
 
             // MARK: Permissions

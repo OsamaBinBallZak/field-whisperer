@@ -19,6 +19,7 @@ Powered by [NVIDIA Parakeet V3](https://huggingface.co/FluidInference/parakeet-t
 - **Transcription history** — last 10 transcriptions accessible from the menu bar, persist across launches
 - **Menu bar only** — no Dock icon
 - **Filler word filter** — optionally strips "um", "uh", "hmm" from transcriptions
+- **Auto-pause music** — Spotify and Apple Music pause while you dictate, resume when you're done. AirPods-aware: waits for the codec to switch back before unmuting so music doesn't bleed through the mic-active route
 
 ---
 
@@ -72,6 +73,7 @@ Click the menu bar icon → **Settings…**
 | **Activation** | Push-to-talk (hold) / Toggle (tap) |
 | **Hotkey** | ⌥Space, ⌃Space, ⌥`, ⌃⌥Space |
 | **Filler filter** | On/Off — removes um, uh, hmm |
+| **Pause music while recording** | On/Off — pauses Spotify and Apple Music during dictation, resumes after |
 
 ---
 
@@ -81,6 +83,7 @@ Click the menu bar icon → **Settings…**
 |---|---|---|
 | **Microphone** | Yes | Prompted automatically |
 | **Accessibility** | Optional | Enables direct text insertion and Escape-to-cancel; without it, text goes via ⌘V and Escape does nothing |
+| **Automation (Spotify / Music)** | Optional | Prompted on first use of Pause-music-while-recording. Approve once → Shhhcribble can pause and resume your music while you dictate. Decline if you don't want this feature, or disable it in Settings |
 
 > After rebuilding in Xcode, re-grant Accessibility: remove Shhhcribble from the list, then re-add it. AX is tied to the binary signature, which changes on every clean build.
 

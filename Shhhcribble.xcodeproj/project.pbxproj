@@ -24,6 +24,7 @@
 		CF000055000000000000001A /* FillerWordFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF000054000000000000001A /* FillerWordFilter.swift */; };
 		CF000056000000000000001A /* shhhcribble-scribble-sound.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = CF000057000000000000001A /* shhhcribble-scribble-sound.mp3 */; };
 		CF000059000000000000001A /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = CF000058000000000000001A /* PrivacyInfo.xcprivacy */; };
+		CF000061000000000000001A /* MusicPauser.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF000060000000000000001A /* MusicPauser.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -34,7 +35,6 @@
 		CF000023000000000000001A /* AudioRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorder.swift; sourceTree = "<group>"; };
 		CF000024000000000000001A /* TranscriptionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionEngine.swift; sourceTree = "<group>"; };
 		CF000025000000000000001A /* ModelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelManager.swift; sourceTree = "<group>"; };
-		CF000054000000000000001A /* FillerWordFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FillerWordFilter.swift; sourceTree = "<group>"; };
 		CF000026000000000000001A /* TextInserter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextInserter.swift; sourceTree = "<group>"; };
 		CF000027000000000000001A /* SoundwavePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundwavePanel.swift; sourceTree = "<group>"; };
 		CF000028000000000000001A /* SoundwaveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundwaveView.swift; sourceTree = "<group>"; };
@@ -44,8 +44,10 @@
 		CF000032000000000000001A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		CF000033000000000000001A /* Shhhcribble.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Shhhcribble.entitlements; sourceTree = "<group>"; };
 		CF000034000000000000001A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		CF000054000000000000001A /* FillerWordFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FillerWordFilter.swift; sourceTree = "<group>"; };
 		CF000057000000000000001A /* shhhcribble-scribble-sound.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = "shhhcribble-scribble-sound.mp3"; sourceTree = "<group>"; };
 		CF000058000000000000001A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		CF000060000000000000001A /* MusicPauser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicPauser.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -74,7 +76,7 @@
 			path = Shhhcribble;
 			sourceTree = "<group>";
 		};
-		CF000010000000000000001A /* (Main) */ = {
+		CF000010000000000000001A = {
 			isa = PBXGroup;
 			children = (
 				CF000009000000000000001A /* Shhhcribble */,
@@ -103,6 +105,7 @@
 			isa = PBXGroup;
 			children = (
 				CF000023000000000000001A /* AudioRecorder.swift */,
+				CF000060000000000000001A /* MusicPauser.swift */,
 			);
 			path = Audio;
 			sourceTree = "<group>";
@@ -188,7 +191,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1500;
-				LastUpgradeCheck = 1500;
+				LastUpgradeCheck = 2640;
 				TargetAttributes = {
 					CF000002000000000000001A = {
 						CreatedOnToolsVersion = 15.0;
@@ -238,6 +241,7 @@
 				CF000036000000000000001A /* AppDelegate.swift in Sources */,
 				CF000037000000000000001A /* HotKeyMonitor.swift in Sources */,
 				CF000038000000000000001A /* AudioRecorder.swift in Sources */,
+				CF000061000000000000001A /* MusicPauser.swift in Sources */,
 				CF000039000000000000001A /* TranscriptionEngine.swift in Sources */,
 				CF000040000000000000001A /* ModelManager.swift in Sources */,
 				CF000041000000000000001A /* TextInserter.swift in Sources */,
@@ -276,6 +280,7 @@
 				CLANG_WARN_INT_CONVERSION = YES;
 				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_CYCLE = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
 				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
@@ -286,9 +291,11 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -308,6 +315,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -336,6 +344,7 @@
 				CLANG_WARN_INT_CONVERSION = YES;
 				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_CYCLE = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
 				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
@@ -346,9 +355,11 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -361,6 +372,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 			};
@@ -374,6 +386,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = Shhhcribble/Resources/Info.plist;
@@ -398,6 +411,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = Shhhcribble/Resources/Info.plist;
@@ -455,7 +469,6 @@
 			productName = FluidAudio;
 		};
 /* End XCSwiftPackageProductDependency section */
-
 	};
 	rootObject = CF000001000000000000001A /* Project object */;
 }

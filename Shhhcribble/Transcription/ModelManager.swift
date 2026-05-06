@@ -81,6 +81,20 @@ enum ModelManager {
         set { UserDefaults.standard.set(newValue, forKey: "fillerFilterEnabled") }
     }
 
+    /// Default true — pause any currently-playing media (Spotify, YouTube,
+    /// Apple Music, Podcasts…) during recording, resume on stop. UserDefaults
+    /// key is `audioDuckingEnabled` for legacy reasons (the feature was a
+    /// volume-ducker before the AirPods async-bridge bug forced a switch to
+    /// pause/resume). Pre-existing user prefs migrate automatically — same key,
+    /// same boolean meaning ("attenuate background audio while recording").
+    static var pauseMusicEnabled: Bool {
+        get {
+            guard UserDefaults.standard.object(forKey: "audioDuckingEnabled") != nil else { return true }
+            return UserDefaults.standard.bool(forKey: "audioDuckingEnabled")
+        }
+        set { UserDefaults.standard.set(newValue, forKey: "audioDuckingEnabled") }
+    }
+
     // MARK: - Transcription history
 
     struct TranscriptionEntry: Codable {

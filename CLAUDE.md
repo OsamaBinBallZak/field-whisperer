@@ -20,7 +20,8 @@ Shhhcribble/
 │   ├── main.swift                ← NSApplicationMain bootstrap
 │   └── AppDelegate.swift         ← Owns all subsystems; recording state machine
 ├── Audio/
-│   └── AudioRecorder.swift       ← AVAudioEngine lifecycle — FRAGILE, read class doc before editing
+│   ├── AudioRecorder.swift       ← AVAudioEngine lifecycle — FRAGILE, read class doc before editing
+│   └── MusicPauser.swift         ← Pauses/resumes media via private MediaRemote.framework
 ├── HotKey/
 │   └── HotKeyMonitor.swift       ← Carbon RegisterEventHotKey (no Input Monitoring needed)
 ├── Transcription/
@@ -76,6 +77,25 @@ On hotkey release, `endRecording()` fires `playCompletionSound()` *and* flips th
 If the result is empty, `showNoResult()` re-presents the pill in a neutral `.noResult` state ("No speech detected", muted `waveform.slash`, 1 s auto-hide) — distinct from the red `.error` state reserved for real failures (transcription threw, permission denied, no mic). Both re-presenters handle the case where the initial hide timer has already fired.
 
 Close timings (post-hotkey-release dwell is ~1.22 s total): `showCopied` and `showNoResult` auto-hide 1.0 s, `showError` 1.6 s, hide spring 0.22 s, `orderOut` 0.3 s.
+
+### Pause-music-while-recording via AppleScript (Spotify + Apple Music)
+On record-start, `MusicPauser` AppleScripts each known music app: "are you running and currently playing? If yes, pause." Tracks which apps it paused. On record-end (success, cancel, error, app quit), AppleScripts each tracked app to resume. Toggle in Settings, default on. UserDefaults key kept as `audioDuckingEnabled` for legacy migration; surfaced in code as `pauseMusicEnabled`.
+
+**Coverage scope:** Spotify and Apple Music only. YouTube and other browser-tab audio are NOT paused. User accepted this trade-off (Spotify is the dominant case). Adding browser-tab JS injection on top is possible without changing the Spotify path if it ever becomes painful.
+
+**Why AppleScript (third iteration):** v1 (`AudioDucker` via Core Audio system volume) worked on built-in speakers but failed on AirPods due to the asynchronous Bluetooth volume bridge — reads returned stale values, compounding errors across recordings. v2 (`MusicPauser` via private `MediaRemote.framework`) was theoretically AirPods-clean because it sidesteps the audio system, but `MRMediaRemoteGetNowPlayingApplicationIsPlaying` returns `false` on macOS 26 even when Spotify and YouTube are actively playing — Apple progressively locked down MediaRemote starting in macOS 15.4. Confirmed via unified-log diagnostics 2026-05-06. AppleScript is the deterministic alternative — slightly more permission friction (one TCC prompt per app first time) but it actually works.
+
+**Why not send media keys unconditionally:** unconditional Play on resume would start music the user had paused themselves before recording. AppleScript's `if player state is playing` check before pausing means we only resume what we paused — predictable, no surprises.
+
+**TCC permission:** First time the user records while Spotify (or Music) is open, macOS prompts "Shhhcribble wants to control 'Spotify'." Approve once → works forever. The reason string lives in `Info.plist` under `NSAppleEventsUsageDescription`. App is *not* sandboxed (see [Shhhcribble.entitlements](Shhhcribble/Resources/Shhhcribble.entitlements) for why), so no `com.apple.security.scripting-targets` entry needed.
+
+**Resume timing — transport-aware fixed delay:** On Bluetooth outputs (AirPods), `scheduleResumeAfterOutputSettles()` waits 2100 ms before resuming. That covers the full HFP→A2DP codec transition plus AirPods' buffer flush — anything shorter leaves an audible "muffled bleed" as the last HFP-quality frames play out before A2DP fully takes over. On non-Bluetooth outputs we use 700 ms — no codec switch, just chime/paste breathing room. The branch is gated by `kAudioDevicePropertyTransportType`. Cancel / error / quit paths skip this entirely and resume synchronously (no chime there to coexist with).
+
+**Why fixed delay and not a Core Audio listener:** an earlier iteration registered a `kAudioDevicePropertyNominalSampleRate` listener intending to resume the instant the codec switched, with the 2100 ms as a safety timeout. Verified via unified-log diagnostics 2026-05-06 that the listener *never fires* on AirPods in practice — the system swaps the default output device between A2DP and HFP virtual devices during the codec switch, leaving our listener attached to one that's no longer current by the time the switch completes. So the timeout was the actual mechanism every recording, the listener was dead weight, and removing it simplified the code without changing behavior. **Don't reintroduce the listener** without a different signal that actually fires (e.g. `kAudioHardwarePropertyDefaultOutputDevice` change events), and even then only if you can prove it gives meaningfully earlier resumes than the fixed delay.
+
+**Diagnostics:** `MusicPauser` logs every pause/resume through `os.Logger(subsystem: "com.shhhcribble.app", category: "pauser")` at `.notice` level (and `.error` on AppleScript failures, including TCC denials — error code -1743). Tail with: `/usr/bin/log stream --predicate 'subsystem == "com.shhhcribble.app"'`.
+
+**Don't relitigate:** don't try `MRMediaRemoteGetNowPlayingInfo` as a "maybe it works where IsPlaying didn't" fallback — we already chose deterministic AppleScript over private-API gambling.
 
 ### Carbon hotkeys (not CGEventTap)
 `RegisterEventHotKey` doesn't require Input Monitoring permission and is never auto-disabled by macOS. Downside: fixed list of presets, no arbitrary chords. Fine.
@@ -135,6 +155,7 @@ Only required deadlock protection **if VP-for-BT is ever reintroduced** — VP t
 | `selectedHotkeyID` | String | `"optSpace"` | Which preset hotkey is active |
 | `activationMode` | String | `"toggle"` | `"pushToTalk"` or `"toggle"` |
 | `fillerFilterEnabled` | Bool | `true` | Strip um/uh/hmm before pasting |
+| `audioDuckingEnabled` | Bool | `true` | Pause Spotify and Apple Music during recording, resume on stop. Browser audio (YouTube etc.) is NOT covered. Key name kept from the predecessor ducking impl for migration; surfaced in code as `pauseMusicEnabled`. |
 | `transcriptionHistory` | Data (JSON) | `[]` | Last 10 transcriptions |
 
 ---

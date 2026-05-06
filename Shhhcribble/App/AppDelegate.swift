@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var soundwavePanel: SoundwavePanel!
     private var menuBarController: MenuBarController!
     private var settingsWindowController: SettingsWindowController?
+    private let musicPauser = MusicPauser()
 
     /// Internal recording state machine. `.transcribing` is a brief window
     /// between hotkey release and transcription completion — never surfaced in
@@ -70,6 +71,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotKeyMonitor.start(keyCode: hotkey.keyCode, modifiers: hotkey.modifiers)
     }
 
+    /// Defensive resume if the user quits mid-recording — otherwise music
+    /// we paused stays paused with no obvious way to discover why.
+    func applicationWillTerminate(_ notification: Notification) {
+        musicPauser.resumeIfPaused()
+    }
+
     // MARK: - Recording state machine
 
     private func beginRecording() async {
@@ -119,6 +126,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func actuallyBeginRecording() {
         print("[Shhhcribble] Recording started")
         state = .recording
+        if ModelManager.pauseMusicEnabled {
+            musicPauser.pauseIfPlaying()
+        }
         soundwavePanel.show()
         menuBarController.setRecordingIndicator(active: true)
         audioRecorder.start(
@@ -141,6 +151,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         stopLiveTranscription()
         stopEscapeMonitor()
         _ = audioRecorder.stop()
+        musicPauser.resumeIfPaused()
         menuBarController.setRecordingIndicator(active: false)
         soundwavePanel.hide()
         state = .idle
@@ -180,6 +191,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         stopLiveTranscription()
         stopEscapeMonitor()
         _ = audioRecorder.stop()
+        musicPauser.resumeIfPaused()
         menuBarController.setRecordingIndicator(active: false)
         soundwavePanel.showError(message)
         state = .idle
@@ -214,6 +226,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         try? await Task.sleep(for: .milliseconds(350))
 
         let samples = audioRecorder.stop()
+        // Resume music after the audio system settles. Delay is transport-
+        // aware (longer on Bluetooth to clear the HFP→A2DP codec
+        // transition, shorter on wired to just clear the chime). Cancel,
+        // error, and quit paths resume immediately — no chime to coexist
+        // with there. See MusicPauser for delay rationale.
+        musicPauser.scheduleResumeAfterOutputSettles()
         print("[Shhhcribble] Captured \(samples.count) samples (~\(String(format: "%.1f", Double(samples.count)/16000))s)")
 
         var textToInsert: String? = nil
