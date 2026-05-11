@@ -167,9 +167,14 @@ Only required deadlock protection **if VP-for-BT is ever reintroduced** — VP t
 3. Verify with `xcodebuild -scheme Shhhcribble -configuration Debug build`.
 4. Smoke test: record on AirPods with music playing → transcript lands, music stays clean. Settings → About shows the new version.
 5. `bash Distribution/create-dmg.sh` → `~/Desktop/Shhhcribble.dmg`.
-6. Commit: `Bump version to X.Y.Z`.
-
-Releases are not tagged on GitHub (stopped as of v1.3.0 — tags created repo noise for no distribution benefit).
+6. Commit: `Bump version to X.Y.Z`. Push to `shhhcribble/main`.
+7. Tag and publish a GitHub release with the DMG attached:
+   ```bash
+   git tag vX.Y.Z
+   git push origin vX.Y.Z
+   gh release create vX.Y.Z ~/Desktop/Shhhcribble.dmg --title "Shhhcribble vX.Y.Z" --notes-file <notes.md>
+   ```
+   README points users to the Releases page for downloads, so the DMG attachment is what end-users actually consume.
 
 ---
 
